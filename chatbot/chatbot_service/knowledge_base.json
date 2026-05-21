@@ -1,0 +1,152 @@
+{
+  "doctors": [
+    {
+      "name": "Dr. John Smith",
+      "specialization": "Dentist",
+      "fees": 600
+    },
+    {
+      "name": "Dr. Asmi Sharma",
+      "specialization": "General Physician",
+      "fees": 450
+    },
+    {
+      "name": "Dr. Priya Sharma",
+      "specialization": "General Physician",
+      "fees": 500
+    },
+    {
+      "name": "Dr. Meera Patel",
+      "specialization": "Pediatrician",
+      "fees": 200
+    },
+    {
+      "name": "Dr. Amit Verma",
+      "specialization": "Cardiologist",
+      "fees": 700
+    }
+  ],
+  "faqs": [
+    {
+      "q": "How do I book an appointment?",
+      "a": "Sign in as a patient, navigate to Book Appointment, select a doctor, date, and time, then confirm."
+    },
+    {
+      "q": "Can I cancel my appointment?",
+      "a": "YES, go to your appointments section and click cancel on the appointment you wish to cancel."
+    },
+    {
+      "q": "How do I upload medical records?",
+      "a": "In your dashboard, go to Health Records section and click Add Record to upload documents."
+    },
+    {
+      "q": "Is my data secure?",
+      "a": "YES, we use industry-standard encryption to protect all your medical data."
+    },
+    {
+      "q": "I booked an appointment — when will it be approved?",
+      "a": "Appointments are usually approved within 24–48 hours. You will receive a notification once the doctor reviews it."
+    },
+    {
+      "q": "How many days until my appointment?",
+      "a": "You can check your dashboard for the exact date. If you share your booking ID, I can help track it."
+    },
+    {
+      "q": "Can I reschedule my appointment?",
+      "a": "You can reschedule your appointment through the 'My Appointments' section in your dashboard, or by contacting your doctor's office directly."
+    },
+    {
+      "q": "What is the status of my booking?",
+      "a": "You can check the status of your booking in the 'My Appointments' section of your patient dashboard."
+    },
+    {
+      "q": "My appointment still shows pending — why?",
+      "a": "Sometimes doctors take time to verify availability. If it’s been more than 48 hours, try contacting support."
+    },
+    {
+      "q": "I submitted an issue — when will it be resolved?",
+      "a": "Most issues are resolved within 24–72 hours depending on complexity. You can track status in your Help/Support section."
+    },
+    {
+      "q": "I can’t upload my lab report — please help.",
+      "a": "Please check your internet connection and ensure the file is in a supported format (PDF, JPG) and within the size limit. If issues persist, contact support."
+    },
+    {
+      "q": "My payment failed — what should I do?",
+      "a": "Check if the money was deducted. If yes, it will be auto-refunded within 3–7 working days. If not, try paying again after some time."
+    },
+    {
+      "q": "I got the wrong appointment time.",
+      "a": "Please contact our support team immediately with your appointment details so we can investigate and correct the issue."
+    },
+    {
+      "q": "My prescription is not visible in the app.",
+      "a": "Prescriptions are usually added by your doctor after a consultation. If it's missing, please contact your doctor's office or support."
+    },
+    {
+      "q": "What are your clinic working hours?",
+      "a": "Our clinic working hours are Monday to Friday, 9:00 AM to 6:00 PM, and Saturday, 9:00 AM to 1:00 PM."
+    },
+    {
+      "q": "How to contact support?",
+      "a": "You can contact support via email at ambapali890@gmail.com or by phone at +91 1234567890."
+    },
+    {
+      "q": "Where can I view my prescriptions?",
+      "a": "You can view your prescriptions in the 'My Health Records' or 'My Prescriptions' section of your patient dashboard."
+    },
+    {
+      "q": "How to update my profile?",
+      "a": "You can update your profile information in the 'Settings' or 'My Profile' section of your dashboard."
+    }
+  ],
+  "business_info": {
+    "email": "ambapali890@gmail.com",
+    "phone": "+91 1234567890",
+    "location": "Jamshedpur, Jharkhand"
+  },
+  "drug_synonyms": {
+    "tylenol": "paracetamol",
+    "advil": "ibuprofen",
+    "motrin": "ibuprofen",
+    "bayer": "aspirin",
+    "coumadin": "warfarin",
+    "prinivil": "lisinopril",
+    "zestril": "lisinopril"
+  },
+  "drug_interactions": {
+    "aspirin": {
+      "ibuprofen": "Both are painkillers from a similar group (NSAIDs). Taking them together may increase the risk of stomach irritation. Drink water, avoid taking them on an empty stomach, and monitor for stomach pain. If you feel severe acidity, dizziness, or black stools — contact a doctor.",
+      "warfarin": "This combination can increase bleeding risk because Aspirin is also a blood thinner. If you are on both, monitor for unusual bruising or bleeding and inform your doctor."
+    },
+    "ibuprofen": {
+      "aspirin": "Both are painkillers from a similar group (NSAIDs). Taking them together may increase the risk of stomach irritation. Drink water, avoid taking them on an empty stomach, and monitor for stomach pain. If you feel severe acidity, dizziness, or black stools — contact a doctor.",
+      "lisinopril": "Minor (Kidney stress)"
+    },
+    "warfarin": {
+      "aspirin": "This combination can increase bleeding risk because Aspirin is also a blood thinner. If you are on both, monitor for unusual bruising or bleeding and inform your doctor.",
+      "amiodarone": "This combination can increase bleeding risk because Amiodarone can raise Warfarin levels. If you are on both, monitor for unusual bruising or bleeding and inform your doctor. Avoid alcohol and do not change doses on your own."
+    },
+    "lisinopril": {
+      "ibuprofen": "Minor (Kidney stress)"
+    },
+    "metformin": {
+        "paracetamol": "Yes — Metformin and Paracetamol generally have no harmful interaction. Stay hydrated and avoid taking Paracetamol on an empty stomach if you have acidity issues."
+    }
+  },
+  "side_effects": {
+      "ibuprofen": "Common side effects include stomach pain, heartburn, nausea, and headache. Seek help if you experience severe stomach pain or black stools. Yes — Ibuprofen can irritate the stomach. Take it after food, avoid if you have ulcers, and stay hydrated.",
+      "paracetamol": "Paracetamol is usually safe when taken in correct doses. Possible mild effects: nausea, mild stomach discomfort. Avoid exceeding daily limit (4g for adults). If you have liver issues, consult a doctor before use.",
+      "metformin": "Common side effects include diarrhea, nausea, vomiting, stomach upset, and a metallic taste in the mouth. These usually lessen over time."
+  },
+  "symptoms_triage": {
+    "fever and sore throat": "This commonly indicates a viral or throat infection. Try warm fluids, steam inhalation, and Paracetamol for fever (if suitable for you). If it lasts more than 2–3 days or becomes severe, consult a General Physician or ENT specialist.",
+    "chest pain": "Chest pain can have many causes — some serious. If it’s mild and related to acidity, try sipping water and sitting upright. If you feel heaviness, sweating, breathlessness, or the pain spreads → seek emergency care immediately.",
+    "dizzy and weak": "It might be dehydration, low BP, or infection. Drink water, rest, and avoid sudden movements. If dizziness keeps happening, consult a General Physician."
+  },
+  "lab_reports_tests": {
+    "cbc report": "A CBC (Complete Blood Count) checks hemoglobin, WBC (white blood cells), and platelets. If any value is high/low, it may indicate infection, anemia, etc. Upload your report and I can summarize it for you.",
+    "high cholesterol": "High cholesterol means you have too many fatty substances in your blood, increasing heart disease risk. It's often managed with diet, exercise, and sometimes medication. Consult your doctor for personalized advice.",
+    "thyroid (tsh) is high": "If your TSH (Thyroid Stimulating Hormone) is high, it usually indicates an underactive thyroid (hypothyroidism). Symptoms can include fatigue, weight gain, and feeling cold. You should definitely consult a doctor (Endocrinologist or General Physician) for diagnosis and treatment."
+  }
+}
