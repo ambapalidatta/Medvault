@@ -32,7 +32,8 @@ public class SecurityConfig {
         configuration.setAllowedOriginPatterns(Arrays.asList(
                 "http://localhost:*",
                 "http://127.0.0.1:*",
-                "https://medvault-frontend-jy9w.onrender.com"));
+                "https://medvault-frontend-jy9w.onrender.com",
+                "https://*.onrender.com"));
 
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(
