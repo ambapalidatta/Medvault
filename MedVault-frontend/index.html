@@ -303,7 +303,7 @@
             e.preventDefault();
             setSubmitStatus({ message: 'Submitting...', type: 'info' });
             try {
-                const response = await fetch('http://localhost:8080/api/issues', {
+                const response = await fetch('https://medvault-backend-ni3i.onrender.com/api/issues', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -1518,7 +1518,7 @@
             try {
                 console.log("Submitting Review Payload:", reviewData);
 
-                const response = await fetch(`http://localhost:8080/api/reviews`, {
+                const response = await fetch(`https://medvault-backend-ni3i.onrender.com/api/reviews`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(reviewData),
@@ -1642,7 +1642,7 @@
             notes: notes ? notes : null
 };
         try {
-            const response = await fetch(`http://localhost:8080/api/medical-conditions`, {
+            const response = await fetch(`https://medvault-backend-ni3i.onrender.com/api/medical-conditions`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(conditionData),
@@ -1764,7 +1764,7 @@ const AddRecordModal = ({ user, onClose, onRecordAdded }) => {
 
       useEffect(() => {
         if (user?.patientId) {
-            fetch(`http://localhost:8080/api/patients/${user.patientId}`)
+            fetch(`https://medvault-backend-ni3i.onrender.com/api/patients/${user.patientId}`)
                 .then(res => res.json())
                 .then(data => {
                     const fName = data.firstName || data.first_name || "";
@@ -1830,7 +1830,7 @@ const AddRecordModal = ({ user, onClose, onRecordAdded }) => {
         if (stressLevel) formData.append("stressLevel", stressLevel);
 
         try {
-          const res = await fetch(`http://localhost:8080/api/records/uploads/${user.patientId}`, {
+          const res = await fetch(`https://medvault-backend-ni3i.onrender.com/api/records/uploads/${user.patientId}`, {
             method: "POST", body: formData
           });
           if (!res.ok) throw new Error("Server rejected the upload");
@@ -2274,7 +2274,7 @@ const AddRecordModal = ({ user, onClose, onRecordAdded }) => {
             console.log(pair[0] + ': ' + (pair[0] === 'file' ? 'File object' : pair[1]));
           }
           
-          const res = await fetch(`http://localhost:8080/api/medications/uploads`, {
+          const res = await fetch(`https://medvault-backend-ni3i.onrender.com/api/medications/uploads`, {
             method: "POST",
             body: formData,
             credentials: 'include'
@@ -2417,11 +2417,11 @@ const AddRecordModal = ({ user, onClose, onRecordAdded }) => {
                     console.log("Fetching health records...");
                     // Note: We don't pass doctorId here because consent was already verified before opening this modal
                     const [recordsRes, prescriptionsRes] = await Promise.all([
-                        fetch(`http://localhost:8080/api/records/patient/${patient.patientId}`, {
+                        fetch(`https://medvault-backend-ni3i.onrender.com/api/records/patient/${patient.patientId}`, {
                             credentials: 'include'
                         }),
                         
-                        fetch(`http://localhost:8080/api/medications/patient/${patient.patientId}`, {
+                        fetch(`https://medvault-backend-ni3i.onrender.com/api/medications/patient/${patient.patientId}`, {
                             credentials: 'include'
                         })
                     ]);
@@ -2459,7 +2459,7 @@ const AddRecordModal = ({ user, onClose, onRecordAdded }) => {
                 }
                 try {
                         console.log("Fetching full patient profile for modal...");
-                        const profileRes = await fetch(`http://localhost:8080/api/patients/${patient.patientId}`);
+                        const profileRes = await fetch(`https://medvault-backend-ni3i.onrender.com/api/patients/${patient.patientId}`);
                         if (profileRes.ok) {
                             const profileData = await profileRes.json();
                             setFullPatientProfile(profileData); // Set the full profile
@@ -2473,7 +2473,7 @@ const AddRecordModal = ({ user, onClose, onRecordAdded }) => {
                 // --- 2. FETCH MEDICAL CONDITIONS (api/medical-conditions) ---
                 try {
                     console.log("Fetching medical conditions...");
-                    const conditionsUrl = `http://localhost:8080/api/medical-conditions/patient/${patient.patientId}`;
+                    const conditionsUrl = `https://medvault-backend-ni3i.onrender.com/api/medical-conditions/patient/${patient.patientId}`;
                     const res = await fetch(conditionsUrl);
                     if (!res.ok) throw new Error(`Failed to fetch conditions (HTTP ${res.status})`);
                     const conditions = await res.json();
@@ -2488,7 +2488,7 @@ const AddRecordModal = ({ user, onClose, onRecordAdded }) => {
                 // --- 3. FETCH PRESCRIPTION FILES (api/medications) ---
                 try {
                     console.log("Fetching prescriptions...");
-                    const prescriptionsUrl = `http://localhost:8080/api/medications/patient/${patient.patientId}`;
+                    const prescriptionsUrl = `https://medvault-backend-ni3i.onrender.com/api/medications/patient/${patient.patientId}`;
                     const res = await fetch(prescriptionsUrl);
                     if (!res.ok) throw new Error(`Failed to fetch prescriptions (HTTP ${res.status})`);
                     const data = await res.json();
@@ -2781,7 +2781,7 @@ const AddRecordModal = ({ user, onClose, onRecordAdded }) => {
                 setLoading(true);
                 try {
                     console.log("Fetching prescriptions for patient:", user.patientId);
-                    const response = await fetch(`http://localhost:8080/api/medications/patient/${user.patientId}`, {
+                    const response = await fetch(`https://medvault-backend-ni3i.onrender.com/api/medications/patient/${user.patientId}`, {
                         method: 'GET',
                         headers: {
                             'Accept': 'application/json',
@@ -3309,7 +3309,7 @@ const PatientDashboard = ({ user, onLogout }) => {
         // --- NOTIFICATION: Reusable function to fetch all notifications ---
         const fetchNotifications = () => {
             if (!user?.userId) return; // Use userId for both patients and doctors
-            fetch(`http://localhost:8080/api/notifications/user/${user.userId}`)
+            fetch(`https://medvault-backend-ni3i.onrender.com/api/notifications/user/${user.userId}`)
                 .then(r => r.ok ? r.json() : [])
                 .then(d => { 
                     setNotifications(d); 
@@ -3324,7 +3324,7 @@ const PatientDashboard = ({ user, onLogout }) => {
             
             // If we are opening the list AND there are unread items
             if (!showNotifications && unreadCount > 0) {
-                fetch(`http://localhost:8080/api/notifications/user/${user.userId}/read-all`, {
+                fetch(`https://medvault-backend-ni3i.onrender.com/api/notifications/user/${user.userId}/read-all`, {
                     method: 'PUT'
                 })
                 .then(res => {
@@ -3343,7 +3343,7 @@ const PatientDashboard = ({ user, onLogout }) => {
         const handleNotificationClick = (notification) => {
             // Mark as read if it's not already
             if (!notification.isRead) {
-                fetch(`http://localhost:8080/api/notifications/${notification.notificationId}/read`, {
+                fetch(`https://medvault-backend-ni3i.onrender.com/api/notifications/${notification.notificationId}/read`, {
                     method: 'PUT'
                 })
                 .catch(console.error); // Fire and forget
@@ -3423,7 +3423,7 @@ const PatientDashboard = ({ user, onLogout }) => {
             const fetchDoctors = async () => {
                 setDoctorsLoading(true);
                 try {
-                    const response = await fetch(`http://localhost:8080/api/doctors`);
+                    const response = await fetch(`https://medvault-backend-ni3i.onrender.com/api/doctors`);
                     if (!response.ok) throw new Error('Failed');
                     const data = await response.json();
                     setDoctors(Array.isArray(data) ? data : []);
@@ -3433,9 +3433,9 @@ const PatientDashboard = ({ user, onLogout }) => {
             fetchDoctors();
 
             if (user?.patientId) {
-                 fetch(`http://localhost:8080/api/patients/${user.patientId}`).then(r=>r.json()).then(d=> setProfileData(d)).catch(console.error);
-                 fetch(`http://localhost:8080/api/notifications/user/${user.userId}`).then(r => r.ok ? r.json() : []).then(d => { setNotifications(d); setUnreadCount(d.filter(n => !n.isRead).length); }).catch(console.error);
-                 fetch(`http://localhost:8080/api/consent-requests/pending?patientId=${user.patientId}`, { credentials: 'include' }).then(r=>r.ok?r.json():[]).then(setPendingConsentRequests).catch(console.error);
+                 fetch(`https://medvault-backend-ni3i.onrender.com/api/patients/${user.patientId}`).then(r=>r.json()).then(d=> setProfileData(d)).catch(console.error);
+                 fetch(`https://medvault-backend-ni3i.onrender.com/api/notifications/user/${user.userId}`).then(r => r.ok ? r.json() : []).then(d => { setNotifications(d); setUnreadCount(d.filter(n => !n.isRead).length); }).catch(console.error);
+                 fetch(`https://medvault-backend-ni3i.onrender.com/api/consent-requests/pending?patientId=${user.patientId}`, { credentials: 'include' }).then(r=>r.ok?r.json():[]).then(setPendingConsentRequests).catch(console.error);
 
                  fetchPatientAppointments();
                  fetchMedicalRecords();
@@ -3446,10 +3446,10 @@ const PatientDashboard = ({ user, onLogout }) => {
             }
         }, [user]);
 
-        const fetchMedicalRecords = () => { if (user?.patientId) fetch(`http://localhost:8080/api/records/patient/${user.patientId}`).then(r=>r.json()).then(d=>setMedicalRecords(d.sort((a, b) => new Date(b.recordDate) - new Date(a.recordDate)))).catch(console.error); };
+        const fetchMedicalRecords = () => { if (user?.patientId) fetch(`https://medvault-backend-ni3i.onrender.com/api/records/patient/${user.patientId}`).then(r=>r.json()).then(d=>setMedicalRecords(d.sort((a, b) => new Date(b.recordDate) - new Date(a.recordDate)))).catch(console.error); };
         const fetchPatientAppointments = () => { 
             if (user?.patientId) {
-                fetch(`http://localhost:8080/api/appointments/patient/${user.patientId}`)
+                fetch(`https://medvault-backend-ni3i.onrender.com/api/appointments/patient/${user.patientId}`)
                     .then(r => r.json())
                     .then(d => {
                         console.log('📅 Fetched appointments:', d);
@@ -3462,12 +3462,12 @@ const PatientDashboard = ({ user, onLogout }) => {
                     });
             }
         };
-        const fetchMedicalConditions = () => { if (user?.patientId) fetch(`http://localhost:8080/api/medical-conditions/patient/${user.patientId}`).then(r=>r.json()).then(d=>setMedicalConditions(d)).catch(console.error); };
-        const fetchPrescriptions = () => { if (user?.patientId) fetch(`http://localhost:8080/api/medications/patient/${user.patientId}`).then(r=>r.json()).then(d=>setPrescriptions(d.sort((a, b) => new Date(b.start_date) - new Date(a.start_date)))).catch(console.error); };
+        const fetchMedicalConditions = () => { if (user?.patientId) fetch(`https://medvault-backend-ni3i.onrender.com/api/medical-conditions/patient/${user.patientId}`).then(r=>r.json()).then(d=>setMedicalConditions(d)).catch(console.error); };
+        const fetchPrescriptions = () => { if (user?.patientId) fetch(`https://medvault-backend-ni3i.onrender.com/api/medications/patient/${user.patientId}`).then(r=>r.json()).then(d=>setPrescriptions(d.sort((a, b) => new Date(b.start_date) - new Date(a.start_date)))).catch(console.error); };
         const fetchEmergencyRequests = () => { 
             if (user?.patientId) {
                 console.log('🚨 Fetching emergency requests for patient:', user.patientId);
-                fetch(`http://localhost:8080/api/emergency-requests/patient/${user.patientId}`)
+                fetch(`https://medvault-backend-ni3i.onrender.com/api/emergency-requests/patient/${user.patientId}`)
                     .then(r => {
                         if (!r.ok) {
                             console.error('❌ Emergency requests fetch failed with status:', r.status);
@@ -3485,7 +3485,7 @@ const PatientDashboard = ({ user, onLogout }) => {
                     });
             }
         };
-        const fetchUserIssues = () => { if (user?.email) fetch(`http://localhost:8080/api/issues/email/${user.email}`).then(r=>r.ok?r.json():[]).then(d=>setUserIssues(d)).catch(console.error); };
+        const fetchUserIssues = () => { if (user?.email) fetch(`https://medvault-backend-ni3i.onrender.com/api/issues/email/${user.email}`).then(r=>r.ok?r.json():[]).then(d=>setUserIssues(d)).catch(console.error); };
 
         // --- SLOT LOGIC ---
         const [allSlotsBookedForDate, setAllSlotsBookedForDate] = useState(false);
@@ -3501,8 +3501,8 @@ const PatientDashboard = ({ user, onLogout }) => {
                 
                 // Fetch all slots for the doctor on this date (both available and booked)
                 Promise.all([
-                    fetch(`http://localhost:8080/api/slots/available/${selectedDoctorId}?date=${selectedDate}`).then(res => res.ok ? res.json() : []),
-                    fetch(`http://localhost:8080/api/slots/doctor/${selectedDoctorId}`).then(res => res.ok ? res.json() : [])
+                    fetch(`https://medvault-backend-ni3i.onrender.com/api/slots/available/${selectedDoctorId}?date=${selectedDate}`).then(res => res.ok ? res.json() : []),
+                    fetch(`https://medvault-backend-ni3i.onrender.com/api/slots/doctor/${selectedDoctorId}`).then(res => res.ok ? res.json() : [])
                 ])
                 .then(([availableData, allDoctorSlots]) => {
                     const available = Array.isArray(availableData) ? availableData : [];
@@ -3619,7 +3619,7 @@ const PatientDashboard = ({ user, onLogout }) => {
              console.log('📅 Booking appointment with data:', appointmentData);
              
              try {
-                 const response = await fetch(`http://localhost:8080/api/appointments/book`, { 
+                 const response = await fetch(`https://medvault-backend-ni3i.onrender.com/api/appointments/book`, { 
                      method: "POST", 
                      headers: { "Content-Type": "application/json" }, 
                      body: JSON.stringify(appointmentData) 
@@ -3648,7 +3648,7 @@ const PatientDashboard = ({ user, onLogout }) => {
 
         const submitEmergencyRequest = async () => {
             try {
-                await fetch(`http://localhost:8080/api/emergency-requests/create`, { 
+                await fetch(`https://medvault-backend-ni3i.onrender.com/api/emergency-requests/create`, { 
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ patientId: user.patientId, doctorId: emergencyData.doctorId, conditionDescription: emergencyData.conditionDescription, urgencyLevel: emergencyData.urgencyLevel, currentLocation: emergencyData.currentLocation, requestDateTime: `${emergencyData.preferredDate}T${emergencyData.preferredTime}` })
                 });
@@ -3671,14 +3671,14 @@ const PatientDashboard = ({ user, onLogout }) => {
 
         const handleProfileUpdate = async () => {
             try {
-                const response = await fetch(`http://localhost:8080/api/patients/${user.patientId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(profileData) });
+                const response = await fetch(`https://medvault-backend-ni3i.onrender.com/api/patients/${user.patientId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(profileData) });
                 if (response.ok) { setSuccessMessage('✅ Profile updated successfully!'); setIsEditingProfile(false); setTimeout(() => setSuccessMessage(''), 3000); }
             } catch (err) { setErrorMessage('Failed to update profile'); }
         };
         
         const handleConsentResponse = async (requestId, status) => {
             try {
-                const response = await fetch(`http://localhost:8080/api/consent-requests/${requestId}`, { 
+                const response = await fetch(`https://medvault-backend-ni3i.onrender.com/api/consent-requests/${requestId}`, { 
                     method: 'PUT', 
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${user.token}` }, 
                     body: JSON.stringify({ status }) 
@@ -4096,7 +4096,7 @@ const PatientDashboard = ({ user, onLogout }) => {
                                                                             // Fetch ALL slots for the doctor (to distinguish "no slots" vs "all booked")
                                                                             try {
                                                                                 const doctorId = a.doctor?.professionalId || a.doctorId;
-                                                                                const res = await fetch(`http://localhost:8080/api/slots/doctor/${doctorId}`);
+                                                                                const res = await fetch(`https://medvault-backend-ni3i.onrender.com/api/slots/doctor/${doctorId}`);
                                                                                 if (res.ok) {
                                                                                     const slots = await res.json();
                                                                                     // Store all slots (for checking if date has any slots)
@@ -4117,7 +4117,7 @@ const PatientDashboard = ({ user, onLogout }) => {
                                                                         onClick={async () => {
                                                                             if (confirm('Are you sure you want to cancel this appointment?')) {
                                                                                 try {
-                                                                                    const res = await fetch(`http://localhost:8080/api/appointments/${a.appointmentId}/status`, {
+                                                                                    const res = await fetch(`https://medvault-backend-ni3i.onrender.com/api/appointments/${a.appointmentId}/status`, {
                                                                                         method: 'PUT',
                                                                                         headers: { 'Content-Type': 'application/json' },
                                                                                         body: JSON.stringify({ status: 'CANCELLED' })
@@ -4621,7 +4621,7 @@ const PatientDashboard = ({ user, onLogout }) => {
                                                     ? rescheduleTime 
                                                     : `${rescheduleTime}:00`;
                                                 const appointmentDateTime = `${rescheduleDate}T${timeWithSeconds}`;
-                                                const response = await fetch(`http://localhost:8080/api/appointments/${selectedAppointmentForReschedule.appointmentId}`, {
+                                                const response = await fetch(`https://medvault-backend-ni3i.onrender.com/api/appointments/${selectedAppointmentForReschedule.appointmentId}`, {
                                                     method: 'PUT',
                                                     headers: { 'Content-Type': 'application/json' },
                                                     body: JSON.stringify({
@@ -4707,7 +4707,7 @@ const PatientDashboard = ({ user, onLogout }) => {
                                         userType: 'PATIENT',
                                         userId: user?.userId
                                     };
-                                    fetch('http://localhost:8080/api/issues', {
+                                    fetch('https://medvault-backend-ni3i.onrender.com/api/issues', {
                                         method: 'POST',
                                         headers: { 'Content-Type': 'application/json' },
                                         body: JSON.stringify(payload)
@@ -4802,7 +4802,7 @@ const PatientDashboard = ({ user, onLogout }) => {
                 
                 try {
                     // Build URL with appropriate parameters
-                    let url = `http://localhost:8080/api/consent-requests/status?doctorId=${user.doctorId}&patientId=${patientId}`;
+                    let url = `https://medvault-backend-ni3i.onrender.com/api/consent-requests/status?doctorId=${user.doctorId}&patientId=${patientId}`;
                     if (isEmergency && emergencyRequestId) {
                         // For emergency requests, pass emergencyRequestId
                         url += `&emergencyRequestId=${emergencyRequestId}`;
@@ -4843,7 +4843,7 @@ const PatientDashboard = ({ user, onLogout }) => {
                     requestBody.appointmentId = appointmentId;
                 }
                 console.log('🔐 Requesting access:', requestBody);
-                const res = await fetch(`http://localhost:8080/api/consent-requests`, {
+                const res = await fetch(`https://medvault-backend-ni3i.onrender.com/api/consent-requests`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${user.token}` },
                     body: JSON.stringify(requestBody),
@@ -4913,7 +4913,7 @@ const PatientDashboard = ({ user, onLogout }) => {
             }
 
             // 2. Fetch using the found ID
-            fetch(`http://localhost:8080/api/notifications/user/${currentUserId}`)
+            fetch(`https://medvault-backend-ni3i.onrender.com/api/notifications/user/${currentUserId}`)
                 .then(r => {
                     if (!r.ok) throw new Error("Failed to fetch");
                     return r.json();
@@ -4932,7 +4932,7 @@ const PatientDashboard = ({ user, onLogout }) => {
             
             // If we are opening the list AND there are unread items
             if (!showNotifications && unreadCount > 0) {
-                fetch(`http://localhost:8080/api/notifications/user/${user.userId}/read-all`, {
+                fetch(`https://medvault-backend-ni3i.onrender.com/api/notifications/user/${user.userId}/read-all`, {
                     method: 'PUT'
                 })
                 .then(res => {
@@ -4951,7 +4951,7 @@ const PatientDashboard = ({ user, onLogout }) => {
         const handleNotificationClick = (notification) => {
             // Mark as read if it's not already
             if (!notification.isRead) {
-                fetch(`http://localhost:8080/api/notifications/${notification.notificationId}/read`, {
+                fetch(`https://medvault-backend-ni3i.onrender.com/api/notifications/${notification.notificationId}/read`, {
                     method: 'PUT'
                 })
                 .catch(console.error); // Fire and forget
@@ -4998,7 +4998,7 @@ const PatientDashboard = ({ user, onLogout }) => {
             const fetchData = async () => {
                 try {
                     // 1. Profile
-                    const profileRes = await fetch(`http://localhost:8080/api/doctors/${doctorId}`);
+                    const profileRes = await fetch(`https://medvault-backend-ni3i.onrender.com/api/doctors/${doctorId}`);
                     if (profileRes.ok) {
                         const data = await profileRes.json();
                         setDoctorProfile({
@@ -5023,7 +5023,7 @@ const PatientDashboard = ({ user, onLogout }) => {
                     }
 
                     // 2. Notifications
-                    const notifRes = await fetch(`http://localhost:8080/api/notifications/user/${user.userId}`);
+                    const notifRes = await fetch(`https://medvault-backend-ni3i.onrender.com/api/notifications/user/${user.userId}`);
                     if (notifRes.ok) {
                         const data = await notifRes.json();
                         setNotifications(data);
@@ -5031,18 +5031,18 @@ const PatientDashboard = ({ user, onLogout }) => {
                     }
 
                     // 3. Slots
-                    const slotsRes = await fetch(`http://localhost:8080/api/slots/doctor/${doctorId}`);
+                    const slotsRes = await fetch(`https://medvault-backend-ni3i.onrender.com/api/slots/doctor/${doctorId}`);
                     if (slotsRes.ok) setSlots(await slotsRes.json());
 
                     // 4. Qualifications
-                    const qualRes = await fetch(`http://localhost:8080/api/qualifications/doctor/${doctorId}`);
+                    const qualRes = await fetch(`https://medvault-backend-ni3i.onrender.com/api/qualifications/doctor/${doctorId}`);
                     if (qualRes.ok) setQualifications(await qualRes.json());
 
                     // --- COMBINED APPOINTMENT & EMERGENCY FETCH ---
-                    const appRes = await fetch(`http://localhost:8080/api/appointments/doctor/${doctorId}`);
+                    const appRes = await fetch(`https://medvault-backend-ni3i.onrender.com/api/appointments/doctor/${doctorId}`);
                     const appData = appRes.ok ? await appRes.json() : [];
 
-                    const emerRes = await fetch(`http://localhost:8080/api/emergency-requests/doctor/${doctorId}`);
+                    const emerRes = await fetch(`https://medvault-backend-ni3i.onrender.com/api/emergency-requests/doctor/${doctorId}`);
                     const emerData = emerRes.ok ? await emerRes.json() : [];
                     
                     // --- POPULATE PATIENT MAP (FIX) ---
@@ -5088,14 +5088,14 @@ const PatientDashboard = ({ user, onLogout }) => {
             setUploadedPrescriptions(new Set(stored));
             
             // Fetch user issues
-            if (user?.email) fetch(`http://localhost:8080/api/issues/email/${user.email}`).then(r=>r.ok?r.json():[]).then(d=>setUserIssues(d)).catch(console.error);
+            if (user?.email) fetch(`https://medvault-backend-ni3i.onrender.com/api/issues/email/${user.email}`).then(r=>r.ok?r.json():[]).then(d=>setUserIssues(d)).catch(console.error);
 
         }, [user]);
         
         // This separate fetch function can be used to refresh *just* appointments
         const fetchDoctorAppointments = () => {
             if (!user?.doctorId) return;
-            fetch(`http://localhost:8080/api/appointments/doctor/${user.doctorId}`)
+            fetch(`https://medvault-backend-ni3i.onrender.com/api/appointments/doctor/${user.doctorId}`)
                 .then(res => res.ok ? res.json() : [])
                 .then(data => {
                     const now = new Date();
@@ -5118,7 +5118,7 @@ const PatientDashboard = ({ user, onLogout }) => {
         // Refresh emergency requests (e.g., after approval)
         const fetchEmergencyRequests = () => {
             if (!user?.doctorId) return;
-            fetch(`http://localhost:8080/api/emergency-requests/doctor/${user.doctorId}`)
+            fetch(`https://medvault-backend-ni3i.onrender.com/api/emergency-requests/doctor/${user.doctorId}`)
                 .then(res => res.ok ? res.json() : [])
                 .then(emerData => {
                     const now = new Date();
@@ -5136,7 +5136,7 @@ const PatientDashboard = ({ user, onLogout }) => {
         
         // Fetch user issues
         const fetchUserIssues = () => { 
-            if (user?.email) fetch(`http://localhost:8080/api/issues/email/${user.email}`).then(r=>r.ok?r.json():[]).then(d=>setUserIssues(d)).catch(console.error); 
+            if (user?.email) fetch(`https://medvault-backend-ni3i.onrender.com/api/issues/email/${user.email}`).then(r=>r.ok?r.json():[]).then(d=>setUserIssues(d)).catch(console.error); 
         };
 
         // Stats Calculation
@@ -5160,13 +5160,13 @@ const PatientDashboard = ({ user, onLogout }) => {
         const handleCreateSlot = async () => {
             if (!slotData.slotDate || !slotData.slotTime) { setMessage('❌ Please select date and time'); return; }
             try {
-                const res = await fetch(`http://localhost:8080/api/slots/create`, {
+                const res = await fetch(`https://medvault-backend-ni3i.onrender.com/api/slots/create`, {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ doctorId: user.doctorId, slotDate: slotData.slotDate, slotTimes: [slotData.slotTime] })
                 });
                 if (res.ok) {
                     setMessage('✅ Slot created!');
-                    fetch(`http://localhost:8080/api/slots/doctor/${user.doctorId}`).then(r=>r.json()).then(setSlots);
+                    fetch(`https://medvault-backend-ni3i.onrender.com/api/slots/doctor/${user.doctorId}`).then(r=>r.json()).then(setSlots);
                     setSlotData({slotDate:'', slotTime:''});
                     setTimeout(()=>setMessage(''), 3000);
                 }
@@ -5183,10 +5183,10 @@ const PatientDashboard = ({ user, onLogout }) => {
                 fd.append('documentName', qualificationData.documentName);
                 fd.append('documentType', qualificationData.documentType);
                 fd.append('file', qualificationData.file);
-                const res = await fetch(`http://localhost:8080/api/qualifications/uploads`, { method: 'POST', body: fd });
+                const res = await fetch(`https://medvault-backend-ni3i.onrender.com/api/qualifications/uploads`, { method: 'POST', body: fd });
                 if (res.ok) {
                     setMessage('✅ Uploaded!');
-                    fetch(`http://localhost:8080/api/qualifications/doctor/${user.doctorId}`).then(r=>r.json()).then(setQualifications);
+                    fetch(`https://medvault-backend-ni3i.onrender.com/api/qualifications/doctor/${user.doctorId}`).then(r=>r.json()).then(setQualifications);
                     setQualificationData({documentName:'', documentType:'Degree', file:null});
                     setShowUploadQualificationModal(false); // Close modal on success
                     setTimeout(()=>setMessage(''), 3000);
@@ -5196,7 +5196,7 @@ const PatientDashboard = ({ user, onLogout }) => {
 
         const updateAppointmentStatus = async (id, status) => {
             try {
-                await fetch(`http://localhost:8080/api/appointments/${id}/status`, {
+                await fetch(`https://medvault-backend-ni3i.onrender.com/api/appointments/${id}/status`, {
                     method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status })
                 });
                 fetchDoctorAppointments();
@@ -5207,7 +5207,7 @@ const PatientDashboard = ({ user, onLogout }) => {
 
         const updateEmergencyRequestStatus = async (id, status) => {
              try {
-                await fetch(`http://localhost:8080/api/emergency-requests/${id}/status`, {
+                await fetch(`https://medvault-backend-ni3i.onrender.com/api/emergency-requests/${id}/status`, {
                     method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status })
                 });
                 fetchEmergencyRequests(); // Refresh emergency list
@@ -5323,7 +5323,7 @@ const PatientDashboard = ({ user, onLogout }) => {
                             
                             {/* Notification Bell (RED COUNTER) */}
                             <div className="relative">
-                                <button onClick={() => { setShowNotifications(!showNotifications); if (!showNotifications && unreadCount > 0) { fetch(`http://localhost:8080/api/notifications/user/${user.userId}/read-all`, { method: 'PUT' }).then(() => { setUnreadCount(0); setNotifications(prev => prev.map(n => ({...n, isRead: true}))); }).catch(console.error); } }} className="text-white hover:text-yellow-200 relative transition-colors transform hover:scale-110">
+                                <button onClick={() => { setShowNotifications(!showNotifications); if (!showNotifications && unreadCount > 0) { fetch(`https://medvault-backend-ni3i.onrender.com/api/notifications/user/${user.userId}/read-all`, { method: 'PUT' }).then(() => { setUnreadCount(0); setNotifications(prev => prev.map(n => ({...n, isRead: true}))); }).catch(console.error); } }} className="text-white hover:text-yellow-200 relative transition-colors transform hover:scale-110">
                                     <i className="fas fa-bell text-2xl"></i>
                                     {unreadCount > 0 && (
                                         <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
@@ -6110,7 +6110,7 @@ const PatientDashboard = ({ user, onLogout }) => {
                                         userType: 'DOCTOR',
                                         userId: user?.userId
                                     };
-                                    fetch('http://localhost:8080/api/issues', {
+                                    fetch('https://medvault-backend-ni3i.onrender.com/api/issues', {
                                         method: 'POST',
                                         headers: { 'Content-Type': 'application/json' },
                                         body: JSON.stringify(payload)
@@ -6186,7 +6186,7 @@ const PatientDashboard = ({ user, onLogout }) => {
                 Object.entries(formData).filter(([_, v]) => v != null && v !== '')
             );
             try {
-                const response = await fetch(`http://localhost:8080/api/auth/register/${role}`, {
+                const response = await fetch(`https://medvault-backend-ni3i.onrender.com/api/auth/register/${role}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload),
@@ -6208,7 +6208,7 @@ const PatientDashboard = ({ user, onLogout }) => {
             e.preventDefault();
             setMessage({ text: 'Signing in...', type: 'info' });
             try {
-                const response = await fetch(`http://localhost:8080/api/auth/login`, {
+                const response = await fetch(`https://medvault-backend-ni3i.onrender.com/api/auth/login`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(formData),
