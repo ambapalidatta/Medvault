@@ -50,15 +50,9 @@ public class AuthController {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
-    
+
     @PostMapping("/register/admin")
     public ResponseEntity<?> registerAdmin(@RequestBody AdminRegistrationDto registrationDto) {
-        try {
-            authService.registerAdmin(registrationDto);
-            return ResponseEntity.ok("Admin registered successfully!");
-        } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
-        }
+        return ResponseEntity.status(403).body("Admin registration is disabled. Use the fixed admin login only.");
     }
 }
-

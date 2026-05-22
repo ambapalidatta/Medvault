@@ -9,7 +9,6 @@ import org.hibernate.annotations.UuidGenerator;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType; // Ensure this is imported
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToOne;
@@ -22,10 +21,10 @@ import lombok.Data;
 public class Admin {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY) // Use standard auto-incrementing ID
+    @GeneratedValue
     @UuidGenerator
-    @Column(name = "admin_id", updatable = false, nullable = false)
-    private String adminId; // Changed to Long
+    @Column(name = "admin_id", updatable = false, nullable = false, length = 36)
+    private String adminId;
 
     @OneToOne
     @JoinColumn(name = "user_id", nullable = false, unique = true)

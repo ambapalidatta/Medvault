@@ -464,7 +464,7 @@
     const fetchAdminProfile = async (email = null) => {
         try {
             // Use provided email or try to get from localStorage or use your admin email
-            const adminEmail = email || localStorage.getItem('adminEmail') || 'ambapali890@gmail.com';
+            const adminEmail = email || localStorage.getItem('adminEmail') || 'admin@medvault.com';
             console.log('🔍 Fetching admin profile for:', adminEmail);
             
             const response = await fetch(`${API_BASE_URL}/admin/profile/email/${encodeURIComponent(adminEmail)}`);
@@ -497,8 +497,8 @@
                 console.log('💡 Trying fallback admin email...');
                 
                 // Try fallback email
-                if (adminEmail !== 'ambapali890@gmail.com') {
-                    return await fetchAdminProfile('ambapali890@gmail.com');
+                if (adminEmail !== 'admin@medvault.com') {
+                    return await fetchAdminProfile('admin@medvault.com');
                 }
                 
                 throw new Error('Admin profile not found');
@@ -533,8 +533,8 @@
                     const userData = await response.json();
                     // Check if user is admin
                     if (userData.role && userData.role.toUpperCase() === 'ADMIN') {
-                        localStorage.setItem('adminEmail', email);
-                        onLogin('admin', email);
+                        localStorage.setItem('adminEmail', userData.email || email);
+                        onLogin('admin', userData.email || email);
                     } else {
                         setError('Access denied. Only administrators can login here.');
                     }
@@ -571,7 +571,7 @@
 
                         {/* Right Side - Login Form */}
                         <div className="md:w-7/12 p-12 bg-white flex flex-col justify-center">
-                            <h3 className="text-3xl font-bold text-slate-900 mb-8">Sign In</h3>
+                            <h3 className="text-3xl font-bold text-slate-900 mb-3">Sign In</h3>\n                            <p className="text-sm text-slate-500 mb-8">Use admin@medvault.com / admin123</p>
                             {error && (
                                 <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
                                     <Icon name="AlertCircle" size={16} className="inline mr-2" />
@@ -589,7 +589,7 @@
                                             value={email}
                                             onChange={(e) => setEmail(e.target.value)}
                                             className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all outline-none"
-                                            placeholder="admin@medvault.co"
+                                            placeholder="admin@medvault.com"
                                             disabled={loading}
                                         />
                                     </div>
