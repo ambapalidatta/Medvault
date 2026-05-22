@@ -986,12 +986,19 @@
         // --- EXISTING LOGIC (MOVED) ---
         // 3. If not logged in and not on a special page, show public pages.
         switch (page) {
+            case 'role_select':
+                return <RoleSelectionPage
+                    onBack={() => navigateTo('home')}
+                    onSelectPatient={() => navigateTo('auth', 'patient', 'role_select')}
+                    onSelectDoctor={() => navigateTo('auth', 'doctor', 'role_select')}
+                    onSelectAdmin={() => { window.location.href = '/admin.html'; }}
+                />;
             case 'auth':
-                return <AuthPage role={selectedRole} onBack={() => navigateTo('home')} onLoginSuccess={handleLoginSuccess} />;
+                return <AuthPage role={selectedRole} onBack={() => navigateTo('role_select')} onLoginSuccess={handleLoginSuccess} />;
             case 'home':
             default:
                 return <HomePage
-                    onNavigateToPatientAuth={() => navigateTo('auth', 'patient', 'home')}
+                    onNavigateToRoleSelect={() => navigateTo('role_select')}
                     loggedIn={!!loggedInUser}
                     onLogout={handleLogout}
                     onNavigateToDashboard={() => navigateTo('dashboard', loggedInUser.role)}
@@ -1102,7 +1109,7 @@
                                     </button>
                                 </>
                             ) : (
-                                <button onClick={onNavigateToPatientAuth} className="bg-gradient-to-r from-purple-600 to-brand-purple text-white px-6 py-2 rounded-full font-bold hover:shadow-lg transition-all">
+                                <button onClick={onNavigateToRoleSelect} className="bg-gradient-to-r from-purple-600 to-brand-purple text-white px-6 py-2 rounded-full font-bold hover:shadow-lg transition-all">
                                     Sign In / Sign Up
                                 </button>
                             )}
@@ -1121,7 +1128,7 @@
                                     Securely manage your medical records, book appointments with top professionals, and take control of your health journey with MedVault.
                                 </p>
                                 <div className="flex gap-4">
-                                    <button onClick={onNavigateToPatientAuth} className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-8 py-4 rounded-full font-bold text-lg hover:shadow-2xl hover:scale-110 hover:from-pink-600 hover:to-orange-500 transition-all">
+                                    <button onClick={onNavigateToRoleSelect} className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-8 py-4 rounded-full font-bold text-lg hover:shadow-2xl hover:scale-110 hover:from-pink-600 hover:to-orange-500 transition-all">
                                         Book Appointment
                                     </button>
                                     <button onClick={() => scrollToSection('about')} className="bg-white text-purple-600 px-8 py-4 rounded-full font-bold text-lg border-2 border-purple-600 hover:bg-gradient-to-r hover:from-purple-600 hover:to-pink-600 hover:text-white hover:scale-105 transition-all">
@@ -1377,7 +1384,7 @@
                     <div className="container mx-auto text-center">
                         <h2 className="text-5xl font-extrabold mb-4">Ready to Take Control of Your Health?</h2>
                         <p className="text-purple-100 max-w-2xl mx-auto mb-8 text-lg">Join thousands of patients managing their healthcare journey with MedVault</p>
-                        <button onClick={onNavigateToPatientAuth} className="bg-white text-purple-600 font-bold py-4 px-12 rounded-full hover:shadow-2xl hover:scale-110 hover:bg-gradient-to-r hover:from-yellow-400 hover:to-orange-400 hover:text-white transition-all text-xl">
+                        <button onClick={onNavigateToRoleSelect} className="bg-white text-purple-600 font-bold py-4 px-12 rounded-full hover:shadow-2xl hover:scale-110 hover:bg-gradient-to-r hover:from-yellow-400 hover:to-orange-400 hover:text-white transition-all text-xl">
                             Book Your Appointment
                         </button>
                     </div>
@@ -1447,6 +1454,81 @@
         </footer>
     );
     // --- RoleSelectionPage ---
+
+    const RoleSelectionPage = ({ onBack, onSelectPatient, onSelectDoctor, onSelectAdmin }) => {
+        const roles = [
+            {
+                title: 'Patient',
+                subtitle: 'Book appointments, manage reports, view prescriptions and medical history.',
+                icon: 'fa-user-injured',
+                gradient: 'from-purple-600 to-pink-600',
+                buttonText: 'Continue as Patient',
+                onClick: onSelectPatient,
+                badge: 'Sign Up / Sign In'
+            },
+            {
+                title: 'Doctor',
+                subtitle: 'Register your professional profile, manage appointments and patient care.',
+                icon: 'fa-user-md',
+                gradient: 'from-purple-600 to-amber-500',
+                buttonText: 'Continue as Doctor',
+                onClick: onSelectDoctor,
+                badge: 'Sign Up / Sign In'
+            },
+            {
+                title: 'Admin',
+                subtitle: 'Access the admin control panel to verify doctors and manage the platform.',
+                icon: 'fa-user-shield',
+                gradient: 'from-slate-800 to-brand-purple',
+                buttonText: 'Admin Login',
+                onClick: onSelectAdmin,
+                badge: 'Login Only'
+            }
+        ];
+
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-brand-bg via-white to-brand-lavender/40 px-4 py-8 flex items-center justify-center">
+                <div className="w-full max-w-6xl">
+                    <button onClick={onBack} className="mb-8 inline-flex items-center gap-2 text-slate-600 hover:text-brand-purple font-semibold transition-colors">
+                        <i className="fas fa-arrow-left"></i>
+                        Back to Home
+                    </button>
+
+                    <div className="text-center mb-12">
+                        <div className="inline-flex items-center justify-center w-20 h-20 rounded-3xl bg-white shadow-xl mb-5 border border-purple-100">
+                            <i className="fas fa-shield-heart text-4xl text-brand-purple"></i>
+                        </div>
+                        <h1 className="text-4xl md:text-5xl font-extrabold text-slate-900 mb-4 font-serif">Welcome to MedVault</h1>
+                        <p className="text-lg text-slate-600 max-w-2xl mx-auto">Choose your portal to continue. Patients and doctors can create accounts or sign in, while admin access is login only.</p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        {roles.map((role) => (
+                            <button
+                                key={role.title}
+                                onClick={role.onClick}
+                                className="group text-left bg-white/85 backdrop-blur-xl rounded-3xl p-7 shadow-xl border border-white hover:shadow-2xl hover:-translate-y-2 transition-all duration-300 overflow-hidden relative"
+                            >
+                                <div className={`absolute inset-x-0 top-0 h-2 bg-gradient-to-r ${role.gradient}`}></div>
+                                <div className="flex items-start justify-between mb-8">
+                                    <div className={`w-20 h-20 rounded-3xl bg-gradient-to-br ${role.gradient} text-white flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300`}>
+                                        <i className={`fas ${role.icon} text-4xl`}></i>
+                                    </div>
+                                    <span className="px-4 py-2 rounded-full bg-purple-50 text-brand-purple text-sm font-bold border border-purple-100">{role.badge}</span>
+                                </div>
+                                <h2 className="text-2xl font-extrabold text-slate-900 mb-3">{role.title}</h2>
+                                <p className="text-slate-600 leading-relaxed min-h-[96px]">{role.subtitle}</p>
+                                <div className={`mt-8 w-full rounded-2xl bg-gradient-to-r ${role.gradient} text-white font-bold py-4 px-5 flex items-center justify-center gap-3 group-hover:gap-5 transition-all`}>
+                                    {role.buttonText}
+                                    <i className="fas fa-arrow-right"></i>
+                                </div>
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            </div>
+        );
+    };
 
 
     // --- DASHBOARD COMPONENTS ---
