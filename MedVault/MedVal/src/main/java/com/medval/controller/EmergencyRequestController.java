@@ -1,36 +1,35 @@
 package com.medval.controller;
 
-import java.util.List;
-
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.CrossOrigin;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
-
 import com.medval.dto.EmergencyRequestDto;
 import com.medval.service.EmergencyRequestService;
 
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+import java.util.Map;
+
 @RestController
 @RequestMapping("/api/emergency-requests")
-@CrossOrigin(origins = "http://localhost:5173")
 public class EmergencyRequestController {
 
-    @Autowired
-    private EmergencyRequestService emergencyRequestService;
+    private final EmergencyRequestService emergencyRequestService;
+
+    public EmergencyRequestController(EmergencyRequestService emergencyRequestService) {
+        this.emergencyRequestService = emergencyRequestService;
+    }
 
     @PostMapping("/create")
     public ResponseEntity<?> createEmergencyRequest(@RequestBody EmergencyRequestDto dto) {
         try {
             EmergencyRequestDto created = emergencyRequestService.createEmergencyRequest(dto);
             return ResponseEntity.ok(created);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
+            System.err.println("Emergency request creation failed: " + e.getMessage());
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("message", "Failed to create emergency request. Please try again later."));
         }
     }
 
@@ -39,8 +38,12 @@ public class EmergencyRequestController {
         try {
             List<EmergencyRequestDto> requests = emergencyRequestService.getPatientRequests(patientId);
             return ResponseEntity.ok(requests);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
+            System.err.println("Fetching patient emergency requests failed: " + e.getMessage());
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("message", "Failed to fetch emergency requests."));
         }
     }
 
@@ -49,8 +52,12 @@ public class EmergencyRequestController {
         try {
             List<EmergencyRequestDto> requests = emergencyRequestService.getDoctorRequests(doctorId);
             return ResponseEntity.ok(requests);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
+            System.err.println("Fetching doctor emergency requests failed: " + e.getMessage());
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("message", "Failed to fetch emergency requests."));
         }
     }
 
@@ -59,8 +66,12 @@ public class EmergencyRequestController {
         try {
             EmergencyRequestDto updated = emergencyRequestService.approveRequest(requestId);
             return ResponseEntity.ok(updated);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
+            System.err.println("Emergency request approval failed: " + e.getMessage());
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("message", "Failed to approve emergency request."));
         }
     }
 
@@ -69,26 +80,38 @@ public class EmergencyRequestController {
         try {
             EmergencyRequestDto updated = emergencyRequestService.rejectRequest(requestId);
             return ResponseEntity.ok(updated);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
+            System.err.println("Emergency request rejection failed: " + e.getMessage());
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("message", "Failed to reject emergency request."));
         }
     }
-    
+
     @PutMapping("/{requestId}/status")
-    public ResponseEntity<?> updateStatus(@PathVariable Long requestId, @RequestBody java.util.Map<String, String> statusMap) {
+    public ResponseEntity<?> updateStatus(
+            @PathVariable Long requestId,
+            @RequestBody Map<String, String> statusMap) {
+
         try {
             String status = statusMap.get("status");
-            EmergencyRequestDto updated;
-            if ("APPROVED".equals(status)) {
-                updated = emergencyRequestService.approveRequest(requestId);
-            } else if ("REJECTED".equals(status)) {
-                updated = emergencyRequestService.rejectRequest(requestId);
-            } else {
-                return ResponseEntity.badRequest().body("Invalid status");
+
+            if ("APPROVED".equalsIgnoreCase(status)) {
+                return ResponseEntity.ok(emergencyRequestService.approveRequest(requestId));
             }
-            return ResponseEntity.ok(updated);
+
+            if ("REJECTED".equalsIgnoreCase(status)) {
+                return ResponseEntity.ok(emergencyRequestService.rejectRequest(requestId));
+            }
+
+            return ResponseEntity.badRequest().body(Map.of("message", "Invalid status."));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
+            System.err.println("Emergency request status update failed: " + e.getMessage());
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("message", "Failed to update emergency request status."));
         }
     }
 
@@ -97,8 +120,12 @@ public class EmergencyRequestController {
         try {
             List<EmergencyRequestDto> requests = emergencyRequestService.getAllRequests();
             return ResponseEntity.ok(requests);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
+            System.err.println("Fetching all emergency requests failed: " + e.getMessage());
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("message", "Failed to fetch emergency requests."));
         }
     }
 }

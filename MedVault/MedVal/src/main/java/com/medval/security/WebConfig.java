@@ -1,20 +1,24 @@
 package com.medval.security;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
-    
+
+    @Value("${file.upload-dir:uploads}")
+    private String uploadDir;
+
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
-        // Serve uploaded qualification files from /uploads/qualifications/
+        String normalizedUploadDir = uploadDir.endsWith("/") ? uploadDir : uploadDir + "/";
+
         registry.addResourceHandler("/uploads/**")
-                .addResourceLocations("file:uploads/");
-        
-        // Also serve from absolute path if needed
+                .addResourceLocations("file:" + normalizedUploadDir);
+
         registry.addResourceHandler("/api/files/**")
-                .addResourceLocations("file:uploads/");
+                .addResourceLocations("file:" + normalizedUploadDir);
     }
 }

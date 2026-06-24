@@ -2,14 +2,17 @@ package com.medval.service;
 
 import com.medval.dto.ConsentRequestDto;
 import com.medval.exception.ResourceNotFoundException;
+import com.medval.model.Appointment;
 import com.medval.model.ConsentRequest;
 import com.medval.model.Doctor;
 import com.medval.model.Patient;
+import com.medval.repository.AppointmentRepository;
 import com.medval.repository.ConsentRequestRepository;
 import com.medval.repository.DoctorRepository;
 import com.medval.repository.PatientRepository;
-import org.springframework.beans.factory.annotation.Autowired;
+
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
@@ -17,174 +20,284 @@ import java.util.Optional;
 @Service
 public class ConsentRequestService {
 
-    @Autowired
-    private ConsentRequestRepository consentRequestRepository;
+    private final ConsentRequestRepository consentRequestRepository;
+    private final DoctorRepository doctorRepository;
+    private final PatientRepository patientRepository;
+    private final AppointmentRepository appointmentRepository;
+    private final NotificationService notificationService;
 
-    @Autowired
-    private DoctorRepository doctorRepository;
+    public ConsentRequestService(
+            ConsentRequestRepository consentRequestRepository,
+            DoctorRepository doctorRepository,
+            PatientRepository patientRepository,
+            AppointmentRepository appointmentRepository,
+            NotificationService notificationService) {
+        this.consentRequestRepository = consentRequestRepository;
+        this.doctorRepository = doctorRepository;
+        this.patientRepository = patientRepository;
+        this.appointmentRepository = appointmentRepository;
+        this.notificationService = notificationService;
+    }
 
-    @Autowired
-    private PatientRepository patientRepository;
-
-    @Autowired
-    private NotificationService notificationService;
-
-    @Autowired
-    private com.medval.repository.AppointmentRepository appointmentRepository;
-
+    @Transactional
     public ConsentRequestDto createConsentRequest(String doctorId, String patientId) {
         return createConsentRequest(doctorId, patientId, null, null);
     }
 
+    @Transactional
     public ConsentRequestDto createConsentRequest(String doctorId, String patientId, String appointmentId) {
         return createConsentRequest(doctorId, patientId, appointmentId, null);
     }
 
-    public ConsentRequestDto createConsentRequest(String doctorId, String patientId, String appointmentId, Long emergencyRequestId) {
-        // Handle emergency request consent
+    @Transactional
+    public ConsentRequestDto createConsentRequest(
+            String doctorId,
+            String patientId,
+            String appointmentId,
+            Long emergencyRequestId) {
+
+        Doctor doctor = doctorRepository.findById(doctorId)
+                .orElseThrow(() -> new ResourceNotFoundException("Doctor not found."));
+
+        Patient patient = patientRepository.findById(patientId)
+                .orElseThrow(() -> new ResourceNotFoundException("Patient not found."));
+
+        Appointment appointment = null;
+
         if (emergencyRequestId != null) {
-            // Check if there's already an approved consent for this emergency request
-            Optional<ConsentRequest> emergencyConsent = consentRequestRepository.findByDoctorPatientEmergencyAndStatus(
-                doctorId, patientId, emergencyRequestId, "APPROVED");
-            if (emergencyConsent.isPresent()) {
-                return convertToDto(emergencyConsent.get());
+            Optional<ConsentRequest> approvedEmergencyConsent = consentRequestRepository
+                    .findByDoctorPatientEmergencyAndStatus(
+                            doctorId,
+                            patientId,
+                            emergencyRequestId,
+                            "APPROVED");
+
+            if (approvedEmergencyConsent.isPresent()) {
+                return convertToDto(approvedEmergencyConsent.get());
             }
-            
-            // Check for pending request for this emergency request
-            Optional<ConsentRequest> pendingEmergencyRequest = consentRequestRepository.findByDoctorPatientEmergencyAndStatus(
-                doctorId, patientId, emergencyRequestId, "PENDING");
+
+            Optional<ConsentRequest> pendingEmergencyRequest = consentRequestRepository
+                    .findByDoctorPatientEmergencyAndStatus(
+                            doctorId,
+                            patientId,
+                            emergencyRequestId,
+                            "PENDING");
+
             if (pendingEmergencyRequest.isPresent()) {
                 throw new IllegalStateException("Request is already pending approval for this emergency request.");
             }
-        }
-        // Handle regular appointment consent
-        else if (appointmentId != null && !appointmentId.isEmpty()) {
-            // Check if there's already an approved consent for this specific appointment (using native query)
-            Optional<ConsentRequest> appointmentConsent = consentRequestRepository.findByDoctorPatientAppointmentAndStatus(
-                doctorId, patientId, appointmentId, "APPROVED");
-            if (appointmentConsent.isPresent()) {
-                return convertToDto(appointmentConsent.get());
+        } else if (appointmentId != null && !appointmentId.isBlank()) {
+            appointment = appointmentRepository.findById(appointmentId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Appointment not found."));
+
+            Optional<ConsentRequest> approvedAppointmentConsent = consentRequestRepository
+                    .findByDoctorPatientAppointmentAndStatus(
+                            doctorId,
+                            patientId,
+                            appointmentId,
+                            "APPROVED");
+
+            if (approvedAppointmentConsent.isPresent()) {
+                return convertToDto(approvedAppointmentConsent.get());
             }
-            
-            // Check for pending request for this specific appointment (using native query)
-            Optional<ConsentRequest> pendingAppointmentRequest = consentRequestRepository.findByDoctorPatientAppointmentAndStatus(
-                doctorId, patientId, appointmentId, "PENDING");
+
+            Optional<ConsentRequest> pendingAppointmentRequest = consentRequestRepository
+                    .findByDoctorPatientAppointmentAndStatus(
+                            doctorId,
+                            patientId,
+                            appointmentId,
+                            "PENDING");
+
             if (pendingAppointmentRequest.isPresent()) {
                 throw new IllegalStateException("Request is already pending approval for this appointment.");
             }
         }
 
-        Doctor doctor = doctorRepository.findById(doctorId)
-                .orElseThrow(() -> new ResourceNotFoundException("Doctor not found with id: " + doctorId));
-        Patient patient = patientRepository.findById(patientId)
-                .orElseThrow(() -> new ResourceNotFoundException("Patient not found with id: " + patientId));
-
         ConsentRequest newRequest = new ConsentRequest();
         newRequest.setDoctor(doctor);
         newRequest.setPatient(patient);
         newRequest.setStatus(ConsentRequest.ConsentStatus.PENDING);
-        
-        // Set emergency request ID if provided
+
         if (emergencyRequestId != null) {
             newRequest.setEmergencyRequestId(emergencyRequestId);
-        }
-        // Set appointment if provided
-        else if (appointmentId != null && !appointmentId.isEmpty()) {
-            appointmentRepository.findById(appointmentId).ifPresent(newRequest::setAppointment);
+        } else if (appointment != null) {
+            newRequest.setAppointment(appointment);
         }
 
         ConsentRequest savedRequest = consentRequestRepository.save(newRequest);
 
-        // Notify Patient
-        String message = "Dr. " + doctor.getFirstName() + " " + doctor.getLastName() + " has requested access to your medical records" + 
-                        (emergencyRequestId != null ? " for your emergency request." : 
-                         appointmentId != null ? " for your appointment." : ".");
-        notificationService.createNotification(patient.getUser().getUserId(), message, "CONSENT_REQUEST");
+        if (patient.getUser() != null) {
+            String message = "Dr. " + safeFullName(doctor.getFirstName(), doctor.getLastName())
+                    + " has requested access to your medical records"
+                    + (emergencyRequestId != null
+                            ? " for your emergency request."
+                            : appointment != null
+                                    ? " for your appointment."
+                                    : ".");
+
+            notificationService.createNotification(
+                    patient.getUser().getUserId(),
+                    message,
+                    "CONSENT_REQUEST");
+        }
 
         return convertToDto(savedRequest);
     }
 
+    @Transactional
     public ConsentRequestDto respondToConsentRequest(Long requestId, String status) {
         ConsentRequest request = consentRequestRepository.findById(requestId)
-                .orElseThrow(() -> new ResourceNotFoundException("Consent request not found with id: " + requestId));
+                .orElseThrow(() -> new ResourceNotFoundException("Consent request not found."));
 
-        ConsentRequest.ConsentStatus newStatus = ConsentRequest.ConsentStatus.valueOf(status.toUpperCase());
+        ConsentRequest.ConsentStatus newStatus;
+
+        try {
+            newStatus = ConsentRequest.ConsentStatus.valueOf(status.toUpperCase());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Invalid consent request status.");
+        }
+
         request.setStatus(newStatus);
 
         ConsentRequest updatedRequest = consentRequestRepository.save(request);
 
-        // Notify Doctor
-        String message = "Patient " + request.getPatient().getFirstName() + " " + request.getPatient().getLastName() + " has " + status.toLowerCase() + " your request to access their records.";
-        notificationService.createNotification(request.getDoctor().getUser().getUserId(), message, "CONSENT_RESPONSE");
+        if (request.getDoctor().getUser() != null) {
+            String message = "Patient " + safeFullName(
+                    request.getPatient().getFirstName(),
+                    request.getPatient().getLastName()) + " has " + newStatus.name().toLowerCase()
+                    + " your request to access their records.";
+
+            notificationService.createNotification(
+                    request.getDoctor().getUser().getUserId(),
+                    message,
+                    "CONSENT_RESPONSE");
+        }
 
         return convertToDto(updatedRequest);
     }
 
+    @Transactional(readOnly = true)
     public boolean checkPermission(String doctorId, String patientId) {
-        return consentRequestRepository.findByDoctor_ProfessionalIdAndPatient_PatientIdAndStatus(doctorId, patientId, ConsentRequest.ConsentStatus.APPROVED).isPresent();
+        return consentRequestRepository
+                .findByDoctor_ProfessionalIdAndPatient_PatientIdAndStatus(
+                        doctorId,
+                        patientId,
+                        ConsentRequest.ConsentStatus.APPROVED)
+                .isPresent();
     }
-    
+
+    @Transactional(readOnly = true)
     public boolean checkPermissionForAppointment(String doctorId, String patientId, String appointmentId) {
-        if (appointmentId == null || appointmentId.isEmpty()) {
+        if (appointmentId == null || appointmentId.isBlank()) {
             return checkPermission(doctorId, patientId);
         }
-        // Use native query to avoid collation issues
-        return consentRequestRepository.findByDoctorPatientAppointmentAndStatus(
-            doctorId, patientId, appointmentId, "APPROVED").isPresent();
+
+        return consentRequestRepository
+                .findByDoctorPatientAppointmentAndStatus(
+                        doctorId,
+                        patientId,
+                        appointmentId,
+                        "APPROVED")
+                .isPresent();
     }
-    
+
+    @Transactional(readOnly = true)
     public boolean checkPermissionForEmergency(String doctorId, String patientId, Long emergencyRequestId) {
         if (emergencyRequestId == null) {
             return checkPermission(doctorId, patientId);
         }
-        return consentRequestRepository.findByDoctorPatientEmergencyAndStatus(
-            doctorId, patientId, emergencyRequestId, "APPROVED").isPresent();
+
+        return consentRequestRepository
+                .findByDoctorPatientEmergencyAndStatus(
+                        doctorId,
+                        patientId,
+                        emergencyRequestId,
+                        "APPROVED")
+                .isPresent();
     }
-    
+
+    @Transactional(readOnly = true)
     public boolean hasPendingRequest(String doctorId, String patientId) {
-        return consentRequestRepository.findByDoctor_ProfessionalIdAndPatient_PatientIdAndStatus(doctorId, patientId, ConsentRequest.ConsentStatus.PENDING).isPresent();
+        return consentRequestRepository
+                .findByDoctor_ProfessionalIdAndPatient_PatientIdAndStatus(
+                        doctorId,
+                        patientId,
+                        ConsentRequest.ConsentStatus.PENDING)
+                .isPresent();
     }
-    
+
+    @Transactional(readOnly = true)
     public boolean hasPendingRequestForAppointment(String doctorId, String patientId, String appointmentId) {
-        if (appointmentId == null || appointmentId.isEmpty()) {
+        if (appointmentId == null || appointmentId.isBlank()) {
             return hasPendingRequest(doctorId, patientId);
         }
-        // Use native query to avoid collation issues
-        return consentRequestRepository.findByDoctorPatientAppointmentAndStatus(
-            doctorId, patientId, appointmentId, "PENDING").isPresent();
+
+        return consentRequestRepository
+                .findByDoctorPatientAppointmentAndStatus(
+                        doctorId,
+                        patientId,
+                        appointmentId,
+                        "PENDING")
+                .isPresent();
     }
-    
+
+    @Transactional(readOnly = true)
     public boolean hasPendingRequestForEmergency(String doctorId, String patientId, Long emergencyRequestId) {
         if (emergencyRequestId == null) {
             return hasPendingRequest(doctorId, patientId);
         }
-        return consentRequestRepository.findByDoctorPatientEmergencyAndStatus(
-            doctorId, patientId, emergencyRequestId, "PENDING").isPresent();
+
+        return consentRequestRepository
+                .findByDoctorPatientEmergencyAndStatus(
+                        doctorId,
+                        patientId,
+                        emergencyRequestId,
+                        "PENDING")
+                .isPresent();
     }
 
+    @Transactional(readOnly = true)
     public List<ConsentRequestDto> getPendingRequestsForPatient(String patientId) {
-        return consentRequestRepository.findByPatient_PatientIdAndStatus(patientId, ConsentRequest.ConsentStatus.PENDING)
+        return consentRequestRepository
+                .findByPatient_PatientIdAndStatus(patientId, ConsentRequest.ConsentStatus.PENDING)
                 .stream()
                 .map(this::convertToDto)
-                .collect(java.util.stream.Collectors.toList());
+                .toList();
     }
 
     private ConsentRequestDto convertToDto(ConsentRequest request) {
         ConsentRequestDto dto = new ConsentRequestDto();
+
         dto.setId(request.getId());
-        dto.setDoctorId(request.getDoctor().getProfessionalId());
-        dto.setDoctorName(request.getDoctor().getFirstName() + " " + request.getDoctor().getLastName());
-        dto.setPatientId(request.getPatient().getPatientId());
-        dto.setPatientName(request.getPatient().getFirstName() + " " + request.getPatient().getLastName());
+
+        if (request.getDoctor() != null) {
+            dto.setDoctorId(request.getDoctor().getProfessionalId());
+            dto.setDoctorName(safeFullName(request.getDoctor().getFirstName(), request.getDoctor().getLastName()));
+        }
+
+        if (request.getPatient() != null) {
+            dto.setPatientId(request.getPatient().getPatientId());
+            dto.setPatientName(safeFullName(request.getPatient().getFirstName(), request.getPatient().getLastName()));
+        }
+
         if (request.getAppointment() != null) {
             dto.setAppointmentId(request.getAppointment().getAppointmentId());
         }
+
         if (request.getEmergencyRequestId() != null) {
             dto.setEmergencyRequestId(request.getEmergencyRequestId());
         }
+
         dto.setStatus(request.getStatus());
         dto.setCreatedAt(request.getCreatedAt());
         dto.setUpdatedAt(request.getUpdatedAt());
+
         return dto;
+    }
+
+    private String safeFullName(String firstName, String lastName) {
+        String first = firstName == null ? "" : firstName.trim();
+        String last = lastName == null ? "" : lastName.trim();
+        return (first + " " + last).trim();
     }
 }

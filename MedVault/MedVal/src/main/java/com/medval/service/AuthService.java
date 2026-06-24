@@ -1,11 +1,5 @@
 package com.medval.service;
 
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.authentication.BadCredentialsException;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
 import com.medval.dto.AdminRegistrationDto;
 import com.medval.dto.DoctorRegistrationDto;
 import com.medval.dto.LoginRequestDto;
@@ -19,6 +13,13 @@ import com.medval.repository.AdminRepository;
 import com.medval.repository.DoctorRepository;
 import com.medval.repository.PatientRepository;
 import com.medval.repository.UserRepository;
+import com.medval.security.JwtService;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class AuthService {
@@ -29,23 +30,29 @@ public class AuthService {
     private final AdminRepository adminRepository;
     private final PasswordEncoder passwordEncoder;
     private final EmailService emailService;
-    private final NotificationService notificationService; // Inject NotificationService
+    private final NotificationService notificationService;
+    private final JwtService jwtService;
 
-    @Autowired
-    public AuthService(UserRepository userRepository,
+    @Value("${frontend.url:http://localhost:5173}")
+    private String frontendUrl;
+
+    public AuthService(
+            UserRepository userRepository,
             PatientRepository patientRepository,
             DoctorRepository doctorRepository,
             AdminRepository adminRepository,
             PasswordEncoder passwordEncoder,
             EmailService emailService,
-            NotificationService notificationService) { // Add to constructor
+            NotificationService notificationService,
+            JwtService jwtService) {
         this.userRepository = userRepository;
         this.patientRepository = patientRepository;
         this.doctorRepository = doctorRepository;
         this.adminRepository = adminRepository;
         this.passwordEncoder = passwordEncoder;
         this.emailService = emailService;
-        this.notificationService = notificationService; // Initialize
+        this.notificationService = notificationService;
+        this.jwtService = jwtService;
     }
 
     @Transactional(readOnly = true)
@@ -53,60 +60,77 @@ public class AuthService {
         User user = userRepository.findByEmail(loginRequestDto.getEmail())
                 .orElseThrow(() -> new BadCredentialsException("Invalid email or password."));
 
+        if (!user.isActive()) {
+            throw new BadCredentialsException("Invalid email or password.");
+        }
+
         if (!passwordEncoder.matches(loginRequestDto.getPassword(), user.getPasswordHash())) {
             throw new BadCredentialsException("Invalid email or password.");
         }
 
-        // --- FIX 1: Declare variables ---
         String name = "";
         String profilePictureUrl = null;
-
-        // --- FIX 2: Rename variables to match frontend (patientId, doctorId) ---
         String patientId = null;
         String doctorId = null;
 
-        switch (user.getRole()) {
-            case "patient":
+        String role = user.getRole() == null ? "" : user.getRole().toUpperCase();
+
+        switch (role) {
+            case "PATIENT":
                 Patient patient = patientRepository.findByUser(user).orElse(null);
                 if (patient != null) {
-                    name = patient.getFirstName() + " " + patient.getLastName();
+                    name = safeFullName(patient.getFirstName(), patient.getLastName());
                     profilePictureUrl = patient.getProfilePictureUrl();
-                    patientId = patient.getPatientId(); // Use renamed variable
+                    patientId = patient.getPatientId();
                 }
                 break;
-            case "doctor":
+
+            case "DOCTOR":
                 Doctor doctor = doctorRepository.findByUser(user).orElse(null);
                 if (doctor != null) {
-                    name = "Dr. " + doctor.getFirstName() + " " + doctor.getLastName();
+                    name = "Dr. " + safeFullName(doctor.getFirstName(), doctor.getLastName());
                     profilePictureUrl = doctor.getProfilePictureUrl();
-                    doctorId = doctor.getProfessionalId(); // Use renamed variable
+                    doctorId = doctor.getProfessionalId();
                 }
                 break;
-            case "admin":
+
             case "ADMIN":
                 Admin admin = adminRepository.findByUser(user).orElse(null);
                 if (admin != null) {
-                    name = admin.getFirstName() + " " + admin.getLastName();
+                    name = safeFullName(admin.getFirstName(), admin.getLastName());
                     profilePictureUrl = admin.getProfilePictureUrl();
                 }
                 break;
+
+            default:
+                throw new BadCredentialsException("Invalid email or password.");
         }
 
-        // --- FIX 3: Pass correct variables to DTO ---
-        return new UserInfoResponseDto(user.getUserId(), name, user.getEmail(), user.getRole(), profilePictureUrl,
-                patientId, doctorId);
+        String token = jwtService.generateToken(user);
+
+        return new UserInfoResponseDto(
+                user.getUserId(),
+                name,
+                user.getEmail(),
+                user.getRole(),
+                profilePictureUrl,
+                patientId,
+                doctorId,
+                token);
     }
 
     @Transactional
     public void registerPatient(PatientRegistrationDto registrationDto) {
         if (userRepository.existsByEmail(registrationDto.getEmail())) {
-            throw new RuntimeException("Error: Email is already in use!");
+            throw new RuntimeException("Email is already in use.");
         }
+
         User user = new User();
         user.setEmail(registrationDto.getEmail());
         user.setPasswordHash(passwordEncoder.encode(registrationDto.getPassword()));
-        user.setRole("patient");
+        user.setRole("PATIENT");
         user.setActive(true);
+        user.setVerified(true);
         userRepository.save(user);
 
         Patient patient = new Patient();
@@ -127,104 +151,25 @@ public class AuthService {
         patient.setProfilePictureUrl(registrationDto.getProfilePictureUrl());
         patientRepository.save(patient);
 
-        // Notify admins about new patient registration
         notificationService.notifyAdmins(
-                "New patient registered: " + patient.getFirstName() + " " + patient.getLastName(),
+                "New patient registered: " + safeFullName(patient.getFirstName(), patient.getLastName()),
                 "PATIENT_REGISTERED");
 
-        // Send welcome email to patient - Purple gradient theme
-        try {
-            String subject = "Welcome to MedVault, " + patient.getFirstName() + "!";
-            String loginLink = "http://localhost:5173/#login?role=patient";
-
-            String htmlBody = "<!DOCTYPE html>" +
-                    "<html>" +
-                    "<head><meta charset='UTF-8'></head>" +
-                    "<body style='margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif; background-color: #f5f3ff;'>"
-                    +
-                    "<div style='max-width: 600px; margin: 20px auto; background-color: #ffffff; border-radius: 0; overflow: hidden; box-shadow: 0 10px 40px rgba(124, 58, 237, 0.15);'>"
-                    +
-
-                    // Header - Purple gradient with patient icon
-                    "<div style='background: linear-gradient(135deg, #7c3aed 0%, #8b5cf6 50%, #a78bfa 100%); padding: 45px 35px;'>"
-                    +
-                    "<table width='100%'><tr>" +
-                    "<td><h1 style='color: #ffffff; margin: 0; font-size: 26px; font-weight: 700;'>MedVault</h1>" +
-                    "<p style='color: rgba(255,255,255,0.85); margin: 5px 0 0 0; font-size: 13px; letter-spacing: 1px;'>HEALTHCARE PLATFORM</p></td>"
-                    +
-                    "<td style='text-align: right;'><img src='https://cdn-icons-png.flaticon.com/256/2869/2869812.png' alt='Patient' style='width: 55px; height: 55px;'/></td>"
-                    +
-                    "</tr></table>" +
-                    "</div>" +
-
-                    // Welcome banner
-                    "<div style='background: linear-gradient(90deg, #a78bfa 0%, #c4b5fd 100%); padding: 20px 35px;'>" +
-                    "<p style='color: #ffffff; margin: 0; font-size: 20px; font-weight: 600;'>Welcome aboard, "
-                    + patient.getFirstName() + "!</p>" +
-                    "</div>" +
-
-                    // Content
-                    "<div style='padding: 40px 35px;'>" +
-                    "<p style='color: #374151; font-size: 15px; line-height: 1.8; margin: 0 0 20px 0;'>" +
-                    "Thank you for joining MedVault. Your account has been successfully created and is ready to use. We're excited to be part of your healthcare journey."
-                    +
-                    "</p>" +
-
-                    // Features - With icons/ticks
-                    "<p style='color: #7c3aed; font-size: 13px; font-weight: 600; margin: 0 0 15px 0; text-transform: uppercase; letter-spacing: 1px;'>What You Can Do</p>"
-                    +
-                    "<table style='width: 100%; margin-bottom: 30px;' cellpadding='10'>" +
-                    "<tr style='background: #f5f3ff;'><td style='color: #7c3aed; width: 30px;'>📅</td><td style='color: #374151; font-size: 14px;'>Book appointments with verified doctors</td></tr>"
-                    +
-                    "<tr><td style='color: #7c3aed;'>🔐</td><td style='color: #374151; font-size: 14px;'>Access your medical records securely</td></tr>"
-                    +
-                    "<tr style='background: #f5f3ff;'><td style='color: #7c3aed;'>💊</td><td style='color: #374151; font-size: 14px;'>View digital prescriptions</td></tr>"
-                    +
-                    "<tr><td style='color: #7c3aed;'>🚨</td><td style='color: #374151; font-size: 14px;'>Request emergency consultations</td></tr>"
-                    +
-                    "<tr style='background: #f5f3ff;'><td style='color: #7c3aed;'>📊</td><td style='color: #374151; font-size: 14px;'>Track your complete health history</td></tr>"
-                    +
-                    "</table>" +
-
-                    // CTA Button
-                    "<div style='text-align: center; margin: 35px 0;'>" +
-                    "<a href='" + loginLink
-                    + "' style='display: inline-block; background: #7c3aed; color: #ffffff; padding: 16px 45px; text-decoration: none; border-radius: 6px; font-size: 15px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;'>Access Patient Portal</a>"
-                    +
-                    "</div>" +
-
-                    "<p style='color: #9ca3af; font-size: 12px; text-align: center;'>Login URL: <a href='" + loginLink
-                    + "' style='color: #7c3aed;'>" + loginLink + "</a></p>" +
-                    "</div>" +
-
-                    // Footer
-                    "<div style='background: #1e1b4b; padding: 25px 35px; text-align: center;'>" +
-                    "<p style='color: #a5b4fc; font-size: 12px; margin: 0 0 5px 0;'>MedVault Healthcare Solutions</p>" +
-                    "<p style='color: #7c3aed; font-size: 11px; margin: 0;'>© 2025 All rights reserved</p>" +
-                    "</div>" +
-
-                    "</div>" +
-                    "</body>" +
-                    "</html>";
-
-            emailService.sendHtmlMessage(user.getEmail(), subject, htmlBody);
-
-        } catch (Exception e) {
-            System.err.println("CRITICAL: Welcome email failed to send for user: " + user.getEmail());
-            e.printStackTrace();
-        }
+        sendPatientWelcomeEmail(user, patient);
     }
 
     @Transactional
     public void registerDoctor(DoctorRegistrationDto registrationDto) {
         if (userRepository.existsByEmail(registrationDto.getEmail())) {
-            throw new RuntimeException("Error: Email is already in use!");
+            throw new RuntimeException("Email is already in use.");
         }
+
         User user = new User();
         user.setEmail(registrationDto.getEmail());
         user.setPasswordHash(passwordEncoder.encode(registrationDto.getPassword()));
-        user.setRole("doctor");
+        user.setRole("DOCTOR");
         user.setActive(true);
+        user.setVerified(false);
         userRepository.save(user);
 
         Doctor doctor = new Doctor();
@@ -246,107 +191,135 @@ public class AuthService {
         doctor.setProfilePictureUrl(registrationDto.getProfilePictureUrl());
         doctor.setConsultationFee(registrationDto.getConsultationFee());
         doctor.setVerified(false);
-
         doctorRepository.save(doctor);
 
-        // Notify admins about new doctor registration
         notificationService.notifyAdmins(
-                "New doctor registered: Dr. " + doctor.getFirstName() + " " + doctor.getLastName(),
+                "New doctor registered: Dr. " + safeFullName(doctor.getFirstName(), doctor.getLastName()),
                 "DOCTOR_REGISTERED");
 
-        // Send welcome email to doctor - Indigo/Purple professional theme
-        try {
-            String subject = "Welcome to MedVault, Dr. " + doctor.getFirstName() + "!";
-            String loginLink = "http://localhost:5173/#login?role=doctor";
-
-            String htmlBody = "<!DOCTYPE html>" +
-                    "<html>" +
-                    "<head><meta charset='UTF-8'></head>" +
-                    "<body style='margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif; background-color: #eef2ff;'>"
-                    +
-                    "<div style='max-width: 600px; margin: 20px auto; background-color: #ffffff; border-radius: 0; overflow: hidden; box-shadow: 0 10px 40px rgba(99, 102, 241, 0.15);'>"
-                    +
-
-                    // Header - Professional indigo with stethoscope icon
-                    "<div style='background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); padding: 45px 35px;'>" +
-                    "<table width='100%'><tr>" +
-                    "<td><h1 style='color: #ffffff; margin: 0; font-size: 26px; font-weight: 700;'>MedVault</h1>" +
-                    "<p style='color: rgba(255,255,255,0.85); margin: 5px 0 0 0; font-size: 13px; letter-spacing: 1px;'>HEALTHCARE PLATFORM</p></td>"
-                    +
-                    "<td style='text-align: right;'><img src='https://cdn-icons-png.flaticon.com/256/709/709094.png' alt='Doctor' style='width: 55px; height: 55px;'/></td>"
-                    +
-                    "</tr></table>" +
-                    "</div>" +
-
-                    // Welcome banner
-                    "<div style='background: linear-gradient(90deg, #818cf8 0%, #a78bfa 100%); padding: 20px 35px;'>" +
-                    "<p style='color: #ffffff; margin: 0; font-size: 20px; font-weight: 600;'>Welcome aboard, Dr. "
-                    + doctor.getFirstName() + "!</p>" +
-                    "</div>" +
-
-                    // Content
-                    "<div style='padding: 40px 35px;'>" +
-                    "<p style='color: #374151; font-size: 15px; line-height: 1.8; margin: 0 0 20px 0;'>" +
-                    "Thank you for registering with MedVault. Your account has been created successfully. Our verification team will review your credentials within <strong>24-48 hours</strong>."
-                    +
-                    "</p>" +
-
-                    // Verification notice - amber
-                    "<div style='background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%); border-radius: 8px; padding: 18px; margin: 0 0 25px 0; border: 1px solid #fcd34d;'>"
-                    +
-                    "<p style='color: #92400e; font-size: 14px; margin: 0;'><strong>⏳ Next Step:</strong> Upload your qualifications and medical license to expedite verification.</p>"
-                    +
-                    "</div>" +
-
-                    // Features - Two column style
-                    "<p style='color: #4f46e5; font-size: 13px; font-weight: 600; margin: 0 0 15px 0; text-transform: uppercase; letter-spacing: 1px;'>Platform Features</p>"
-                    +
-                    "<table style='width: 100%; margin-bottom: 30px;' cellpadding='10'>" +
-                    "<tr style='background: #f5f3ff;'><td style='color: #5b21b6; width: 30px;'>📅</td><td style='color: #374151; font-size: 14px;'>Appointment Management</td></tr>"
-                    +
-                    "<tr><td style='color: #5b21b6;'>🔐</td><td style='color: #374151; font-size: 14px;'>Secure Patient Records Access</td></tr>"
-                    +
-                    "<tr style='background: #f5f3ff;'><td style='color: #5b21b6;'>🗓️</td><td style='color: #374151; font-size: 14px;'>Availability Scheduling</td></tr>"
-                    +
-                    "<tr><td style='color: #5b21b6;'>💊</td><td style='color: #374151; font-size: 14px;'>Digital Prescriptions</td></tr>"
-                    +
-                    "<tr style='background: #f5f3ff;'><td style='color: #5b21b6;'>🚨</td><td style='color: #374151; font-size: 14px;'>Emergency Consultations</td></tr>"
-                    +
-                    "<tr><td style='color: #5b21b6;'>📊</td><td style='color: #374151; font-size: 14px;'>Earnings Dashboard</td></tr>"
-                    +
-                    "</table>" +
-
-                    // CTA Button - Square professional style
-                    "<div style='text-align: center; margin: 35px 0;'>" +
-                    "<a href='" + loginLink
-                    + "' style='display: inline-block; background: #4f46e5; color: #ffffff; padding: 16px 45px; text-decoration: none; border-radius: 6px; font-size: 15px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;'>Access Doctor Portal</a>"
-                    +
-                    "</div>" +
-
-                    "<p style='color: #9ca3af; font-size: 12px; text-align: center;'>Login URL: <a href='" + loginLink
-                    + "' style='color: #6366f1;'>" + loginLink + "</a></p>" +
-                    "</div>" +
-
-                    // Footer - Dark professional
-                    "<div style='background: #1e1b4b; padding: 25px 35px; text-align: center;'>" +
-                    "<p style='color: #a5b4fc; font-size: 12px; margin: 0 0 5px 0;'>MedVault Healthcare Solutions</p>" +
-                    "<p style='color: #6366f1; font-size: 11px; margin: 0;'>© 2025 All rights reserved</p>" +
-                    "</div>" +
-
-                    "</div>" +
-                    "</body>" +
-                    "</html>";
-
-            emailService.sendHtmlMessage(user.getEmail(), subject, htmlBody);
-
-        } catch (Exception e) {
-            System.err.println("CRITICAL: Welcome email failed to send for doctor: " + user.getEmail());
-            e.printStackTrace();
-        }
+        sendDoctorWelcomeEmail(user, doctor);
     }
 
     @Transactional
     public void registerAdmin(AdminRegistrationDto registrationDto) {
-        throw new RuntimeException("Admin registration is disabled. Use admin@medvault.com with password admin123.");
+        throw new RuntimeException("Admin registration is disabled.");
+    }
+
+    private void sendPatientWelcomeEmail(User user, Patient patient) {
+        try {
+            String loginLink = buildFrontendUrl("#login?role=patient");
+            String subject = "Welcome to MedVault, " + patient.getFirstName() + "!";
+
+            String htmlBody = buildEmailTemplate(
+                    "Welcome aboard, " + patient.getFirstName() + "!",
+                    "Your MedVault patient account has been created successfully.",
+                    "You can now book appointments, upload health records, view prescriptions, and manage your healthcare journey securely.",
+                    "Access Patient Portal",
+                    loginLink,
+                    "#7c3aed");
+
+            emailService.sendHtmlMessage(user.getEmail(), subject, htmlBody);
+        } catch (Exception e) {
+            System.err.println("Welcome email failed for patient " + user.getEmail() + ": " + e.getMessage());
+        }
+    }
+
+    private void sendDoctorWelcomeEmail(User user, Doctor doctor) {
+        try {
+            String loginLink = buildFrontendUrl("#login?role=doctor");
+            String subject = "Welcome to MedVault, Dr. " + doctor.getFirstName() + "!";
+
+            String htmlBody = buildEmailTemplate(
+                    "Welcome aboard, Dr. " + doctor.getFirstName() + "!",
+                    "Your MedVault doctor account has been created successfully.",
+                    "Your account is pending admin verification. Please upload your qualification and license documents to complete verification.",
+                    "Access Doctor Portal",
+                    loginLink,
+                    "#4f46e5");
+
+            emailService.sendHtmlMessage(user.getEmail(), subject, htmlBody);
+        } catch (Exception e) {
+            System.err.println("Welcome email failed for doctor " + user.getEmail() + ": " + e.getMessage());
+        }
+    }
+
+    private String buildFrontendUrl(String pathOrHash) {
+        String baseUrl = frontendUrl == null || frontendUrl.isBlank()
+                ? "http://localhost:5173"
+                : frontendUrl.split(",")[0].trim();
+
+        if (pathOrHash == null || pathOrHash.isBlank()) {
+            return baseUrl;
+        }
+
+        if (pathOrHash.startsWith("#")) {
+            return baseUrl + "/" + pathOrHash;
+        }
+
+        if (pathOrHash.startsWith("/")) {
+            return baseUrl + pathOrHash;
+        }
+
+        return baseUrl + "/" + pathOrHash;
+    }
+
+    private String buildEmailTemplate(
+            String heading,
+            String intro,
+            String message,
+            String buttonText,
+            String buttonLink,
+            String themeColor) {
+
+        return "<!DOCTYPE html>" +
+                "<html>" +
+                "<head><meta charset='UTF-8'></head>" +
+                "<body style='margin:0;padding:0;font-family:Arial,sans-serif;background:#f8fafc;'>" +
+                "<div style='max-width:600px;margin:24px auto;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 10px 30px rgba(15,23,42,0.12);'>"
+                +
+                "<div style='background:" + themeColor + ";padding:32px;color:#ffffff;'>" +
+                "<h1 style='margin:0;font-size:26px;'>MedVault</h1>" +
+                "<p style='margin:8px 0 0;font-size:14px;opacity:0.9;'>Healthcare Platform</p>" +
+                "</div>" +
+                "<div style='padding:32px;'>" +
+                "<h2 style='margin:0 0 16px;color:#0f172a;font-size:24px;'>" + escapeHtml(heading) + "</h2>" +
+                "<p style='color:#334155;font-size:15px;line-height:1.7;margin:0 0 14px;'>" + escapeHtml(intro) + "</p>"
+                +
+                "<p style='color:#334155;font-size:15px;line-height:1.7;margin:0 0 28px;'>" + escapeHtml(message)
+                + "</p>" +
+                "<div style='text-align:center;margin:32px 0;'>" +
+                "<a href='" + buttonLink + "' style='display:inline-block;background:" + themeColor
+                + ";color:#ffffff;text-decoration:none;padding:14px 30px;border-radius:8px;font-weight:700;'>" +
+                escapeHtml(buttonText) +
+                "</a>" +
+                "</div>" +
+                "<p style='color:#64748b;font-size:12px;text-align:center;'>If the button does not work, open this link:<br>"
+                +
+                "<a href='" + buttonLink + "' style='color:" + themeColor + ";'>" + buttonLink + "</a></p>" +
+                "</div>" +
+                "<div style='background:#0f172a;padding:20px;text-align:center;color:#94a3b8;font-size:12px;'>" +
+                "© 2026 MedVault. All rights reserved." +
+                "</div>" +
+                "</div>" +
+                "</body>" +
+                "</html>";
+    }
+
+    private String safeFullName(String firstName, String lastName) {
+        String first = firstName == null ? "" : firstName.trim();
+        String last = lastName == null ? "" : lastName.trim();
+        return (first + " " + last).trim();
+    }
+
+    private String escapeHtml(String value) {
+        if (value == null)
+            return "";
+
+        return value
+                .replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;")
+                .replace("'", "&#39;");
     }
 }

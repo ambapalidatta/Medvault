@@ -1,15 +1,15 @@
 package com.medval.service;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.medval.dto.AppointmentRequestDto;
-import com.medval.dto.AppointmentStatusUpdateDto;
 import com.medval.dto.AppointmentRescheduleDto;
+import com.medval.dto.AppointmentStatusUpdateDto;
 import com.medval.model.Appointment;
 import com.medval.model.Doctor;
 import com.medval.model.DoctorSlot;
@@ -23,34 +23,38 @@ import com.medval.repository.UserRepository;
 @Service
 public class AppointmentService {
 
-    @Autowired
-    private AppointmentRepository appointmentRepository;
+    private final AppointmentRepository appointmentRepository;
+    private final PatientRepository patientRepository;
+    private final DoctorRepository doctorRepository;
+    private final UserRepository userRepository;
+    private final DoctorSlotService slotService;
+    private final NotificationService notificationService;
+    private final EmailNotificationService emailNotificationService;
 
-    @Autowired
-    private PatientRepository patientRepository;
+    public AppointmentService(
+            AppointmentRepository appointmentRepository,
+            PatientRepository patientRepository,
+            DoctorRepository doctorRepository,
+            UserRepository userRepository,
+            DoctorSlotService slotService,
+            NotificationService notificationService,
+            EmailNotificationService emailNotificationService) {
+        this.appointmentRepository = appointmentRepository;
+        this.patientRepository = patientRepository;
+        this.doctorRepository = doctorRepository;
+        this.userRepository = userRepository;
+        this.slotService = slotService;
+        this.notificationService = notificationService;
+        this.emailNotificationService = emailNotificationService;
+    }
 
-    @Autowired
-    private DoctorRepository doctorRepository;
-    
-    @Autowired
-    private UserRepository userRepository;
-
-    @Autowired
-    private DoctorSlotService slotService;
-    
-    @Autowired
-    private NotificationService notificationService;
-
-    @Autowired
-    private EmailNotificationService emailNotificationService;
-
-    // Patient: Create a new appointment request
     @Transactional
     public Appointment createAppointment(AppointmentRequestDto requestDto) {
         Patient patient = patientRepository.findById(requestDto.getPatientId())
-                .orElseThrow(() -> new RuntimeException("Patient not found"));
+                .orElseThrow(() -> new RuntimeException("Patient not found."));
+
         Doctor doctor = doctorRepository.findById(requestDto.getDoctorId())
-                .orElseThrow(() -> new RuntimeException("Doctor not found"));
+                .orElseThrow(() -> new RuntimeException("Doctor not found."));
 
         Appointment appointment = new Appointment();
         appointment.setPatient(patient);
@@ -58,321 +62,326 @@ public class AppointmentService {
         appointment.setAppointmentDateTime(requestDto.getAppointmentDateTime());
         appointment.setReason(requestDto.getReason());
         appointment.setStatus(Appointment.AppointmentStatus.PENDING);
-        
-        // Link slot if provided
+
         if (requestDto.getSlotId() != null) {
-            System.out.println("=== SLOT BOOKING ===");
-            System.out.println("Slot ID received: " + requestDto.getSlotId());
-            try {
-                DoctorSlot slot = slotService.getSlotById(requestDto.getSlotId());
-                System.out.println("Slot found: " + (slot != null));
-                if (slot != null) {
-                    System.out.println("Slot isAvailable: " + slot.getIsAvailable());
-                    if (slot.getIsAvailable()) {
-                        appointment.setSlot(slot);
-                        // Mark slot as booked (unavailable)
-                        slotService.markSlotAsBooked(requestDto.getSlotId());
-                        System.out.println("✅ Slot marked as booked!");
-                    } else {
-                        System.out.println("⚠️ Slot already booked!");
-                    }
-                }
-            } catch (Exception e) {
-                System.err.println("❌ Error linking slot: " + e.getMessage());
-                e.printStackTrace();
+            DoctorSlot slot = slotService.getSlotById(requestDto.getSlotId());
+
+            if (slot == null) {
+                throw new RuntimeException("Selected slot not found.");
             }
-        } else {
-            System.out.println("⚠️ No slotId provided in request");
+
+            if (!slot.getIsAvailable()) {
+                throw new RuntimeException("Selected slot is already booked.");
+            }
+
+            appointment.setSlot(slot);
+            slotService.markSlotAsBooked(requestDto.getSlotId());
         }
-        
+
         Appointment savedAppointment = appointmentRepository.save(appointment);
 
-        // Notify Admins about new appointment booking
         notificationService.notifyAdmins(
-            "New Appointment Booked: " + patient.getFirstName() + " " + patient.getLastName() + " with Dr. " + doctor.getFirstName() + " " + doctor.getLastName(),
-            "APPOINTMENT_BOOKED"
-        );
+                "New appointment booked: " + safeFullName(patient.getFirstName(), patient.getLastName())
+                        + " with Dr. " + safeFullName(doctor.getFirstName(), doctor.getLastName()),
+                "APPOINTMENT_BOOKED");
 
-        try {
-            String doctorUserId = savedAppointment.getDoctor().getUser().getUserId(); 
-            String patientName = (patient.getFirstName() + " " + patient.getLastName()).trim();
-            
-            notificationService.createNotification(
-                doctorUserId, 
-                "New appointment request from " + patientName,
-                "APPOINTMENT_REQUEST"
-            );
+        notifyDoctorAboutNewAppointment(savedAppointment);
 
-            // Send email to doctor
-            String doctorEmail = doctor.getUser().getEmail();
-            String subject = "New Appointment Request";
-            String htmlBody = "<h3>You have a new appointment request.</h3>" +
-                    "<p><b>Patient:</b> " + patientName + "</p>" +
-                    "<p><b>Date:</b> " + savedAppointment.getAppointmentDateTime().toLocalDate() + "</p>" +
-                    "<p><b>Time:</b> " + savedAppointment.getAppointmentDateTime().toLocalTime() + "</p>" +
-                    "<p><b>Reason:</b> " + savedAppointment.getReason() + "</p>" +
-                    "<a href='#' style='background-color: #4CAF50; color: white; padding: 10px 20px; text-align: center; text-decoration: none; display: inline-block; border-radius: 5px;'>Approve</a> " +
-                    "<a href='#' style='background-color: #f44336; color: white; padding: 10px 20px; text-align: center; text-decoration: none; display: inline-block; border-radius: 5px;'>Reject</a>" +
-                    "<p><small>This is a system-generated email from the local development environment.</small></p>";
-            emailNotificationService.sendHtmlEmail(doctorEmail, subject, htmlBody);
-
-        } catch (Exception e) {
-            System.err.println("\n\n--- NOTIFICATION SEND FAILED (Create Appointment) ---");
-            e.printStackTrace(); 
-            System.err.println("--- END FAILURE ---\n");
-        }
-        
         return savedAppointment;
     }
-   
-    // Patient: Get all appointments for a specific patient
+
+    @Transactional(readOnly = true)
     public List<Appointment> getAppointmentsForPatient(String patientId) {
         Patient patient = patientRepository.findById(patientId)
-                .orElseThrow(() -> new RuntimeException("Patient not found"));
+                .orElseThrow(() -> new RuntimeException("Patient not found."));
+
         return appointmentRepository.findByPatient(patient);
     }
 
-    // Doctor: Get all appointments for a specific doctor
+    @Transactional(readOnly = true)
     public List<Appointment> getAppointmentsForDoctor(String doctorId) {
         Doctor doctor = doctorRepository.findById(doctorId)
-                .orElseThrow(() -> new RuntimeException("Doctor not found"));
+                .orElseThrow(() -> new RuntimeException("Doctor not found."));
+
         return appointmentRepository.findByDoctor(doctor);
     }
 
-    // Doctor: Approve or Reject an appointment
     @Transactional
-    public Appointment updateAppointmentStatus(String appointmentId, AppointmentStatusUpdateDto statusUpdate) {
-        System.out.println("----- updateAppointmentStatus -----");
-        System.out.println("Attempting to update appointment ID: " + appointmentId);
-        System.out.println("Requested new status: " + statusUpdate.getStatus());
+    public Appointment updateAppointmentStatus(
+            String appointmentId,
+            AppointmentStatusUpdateDto statusUpdate) {
 
         if (appointmentId == null || appointmentId.trim().isEmpty()) {
-            System.err.println("ERROR: Received null or empty appointmentId.");
-            throw new RuntimeException("Appointment ID cannot be null or empty.");
+            throw new RuntimeException("Appointment ID cannot be empty.");
         }
+
         if (statusUpdate == null || statusUpdate.getStatus() == null || statusUpdate.getStatus().trim().isEmpty()) {
-            System.err.println("ERROR: Received null or empty status update.");
-            throw new RuntimeException("Status update cannot be null or empty.");
+            throw new RuntimeException("Appointment status is required.");
         }
 
         Appointment appointment = appointmentRepository.findById(appointmentId)
-                .orElseThrow(() -> {
-                    System.err.println("ERROR: Appointment not found with ID: " + appointmentId);
-                    return new RuntimeException("Appointment not found");
-                });
-
-        System.out.println("Found appointment. Current status: " + appointment.getStatus());
+                .orElseThrow(() -> new RuntimeException("Appointment not found."));
 
         Appointment.AppointmentStatus newStatus;
+
         try {
             newStatus = Appointment.AppointmentStatus.valueOf(statusUpdate.getStatus().toUpperCase());
-            System.out.println("Successfully converted requested status to enum: " + newStatus);
         } catch (IllegalArgumentException e) {
-            System.err.println("ERROR: Invalid status value received: " + statusUpdate.getStatus());
-            throw new RuntimeException("Invalid status value: " + statusUpdate.getStatus());
+            throw new RuntimeException("Invalid appointment status.");
         }
 
-        if (appointment.getStatus() == Appointment.AppointmentStatus.PENDING &&
-           (newStatus == Appointment.AppointmentStatus.APPROVED || newStatus == Appointment.AppointmentStatus.REJECTED)) {
+        if (appointment.getStatus() != Appointment.AppointmentStatus.PENDING) {
+            throw new RuntimeException("Only pending appointments can be approved or rejected.");
+        }
 
-            System.out.println("Status transition is valid. Setting new status to: " + newStatus);
-            
-            // If appointment is rejected, free up the slot
-            if (newStatus == Appointment.AppointmentStatus.REJECTED && appointment.getSlot() != null) {
-                try {
-                    slotService.freeSlot(appointment.getSlot().getSlotId());
-                    System.out.println("Freed up slot ID: " + appointment.getSlot().getSlotId());
-                } catch (Exception e) {
-                    System.err.println("ERROR: Failed to free slot: " + e.getMessage());
-                }
-            }
-            
-            appointment.setStatus(newStatus);
-
-            try {
-                Appointment savedAppointment = appointmentRepository.save(appointment);
-                System.out.println("Successfully saved appointment with new status.");
-
-                // Notify Admins about the appointment status update
-                notificationService.notifyAdmins(
-                    "Appointment " + newStatus.name() + ": " + savedAppointment.getPatient().getFirstName() + " " + savedAppointment.getPatient().getLastName() + " with Dr. " + savedAppointment.getDoctor().getFirstName() + " " + savedAppointment.getDoctor().getLastName(),
-                    newStatus == Appointment.AppointmentStatus.APPROVED ? "APPOINTMENT_APPROVED" : "APPOINTMENT_REJECTED"
-                );
-
-                try {
-                    String patientUserId = savedAppointment.getPatient().getUser().getUserId();
-                    String doctorName = "Dr. " + savedAppointment.getDoctor().getFirstName() + " " + savedAppointment.getDoctor().getLastName();
-                    
-                    String message = newStatus == Appointment.AppointmentStatus.APPROVED 
-                        ? "Your appointment with " + doctorName + " has been CONFIRMED."
-                        : "Your appointment with " + doctorName + " was REJECTED.";
-                    
-                    String notifType = newStatus == Appointment.AppointmentStatus.APPROVED 
-                        ? "APPOINTMENT_APPROVED" 
-                        : "APPOINTMENT_REJECTED";
-
-                    notificationService.createNotification(
-                        patientUserId, 
-                        message,
-                        notifType
-                    );
-
-                    if (newStatus == Appointment.AppointmentStatus.APPROVED) {
-                        User patientUser = userRepository.findById(patientUserId).orElseThrow(() -> new RuntimeException("Patient user not found"));
-                        String patientEmail = patientUser.getEmail();
-                        String subject = "Your Appointment has been Confirmed";
-                        String htmlBody = "<h3>Your appointment has been confirmed!</h3>" +
-                                "<p><b>Doctor:</b> " + doctorName + "</p>" +
-                                "<p><b>Date:</b> " + savedAppointment.getAppointmentDateTime().toLocalDate() + "</p>" +
-                                "<p><b>Time:</b> " + savedAppointment.getAppointmentDateTime().toLocalTime() + "</p>" +
-                                "<p style='color: green;'>&#10004; Your appointment is confirmed.</p>";
-                        emailNotificationService.sendHtmlEmail(patientEmail, subject, htmlBody);
-                    }
-
-                } catch (Exception e) {
-                    System.err.println("\n\n--- NOTIFICATION SEND FAILED (Status Update) ---");
-                    e.printStackTrace(); 
-                    System.err.println("--- END FAILURE ---\n");
-                }
-
-                System.out.println("----- updateAppointmentStatus END -----");
-                return savedAppointment;
-            } catch (Exception e) {
-                System.err.println("ERROR: Failed to save appointment update to database.");
-                e.printStackTrace(); 
-                throw new RuntimeException("Failed to save appointment update.");
-            }
-        } else {
-            System.err.println("ERROR: Invalid status transition requested from " + appointment.getStatus() + " to " + newStatus);
+        if (newStatus != Appointment.AppointmentStatus.APPROVED
+                && newStatus != Appointment.AppointmentStatus.REJECTED) {
             throw new RuntimeException("Invalid status transition.");
         }
+
+        if (newStatus == Appointment.AppointmentStatus.REJECTED && appointment.getSlot() != null) {
+            slotService.freeSlot(appointment.getSlot().getSlotId());
+        }
+
+        appointment.setStatus(newStatus);
+
+        Appointment savedAppointment = appointmentRepository.save(appointment);
+
+        notificationService.notifyAdmins(
+                "Appointment " + newStatus.name() + ": "
+                        + safeFullName(savedAppointment.getPatient().getFirstName(),
+                                savedAppointment.getPatient().getLastName())
+                        + " with Dr. "
+                        + safeFullName(savedAppointment.getDoctor().getFirstName(),
+                                savedAppointment.getDoctor().getLastName()),
+                newStatus == Appointment.AppointmentStatus.APPROVED
+                        ? "APPOINTMENT_APPROVED"
+                        : "APPOINTMENT_REJECTED");
+
+        notifyPatientAboutAppointmentStatus(savedAppointment, newStatus);
+
+        return savedAppointment;
     }
- 
-    // Patient: Reschedule an appointment
+
     @Transactional
-    public Appointment rescheduleAppointment(String appointmentId, AppointmentRescheduleDto rescheduleDto) {
-        System.out.println("----- rescheduleAppointment -----");
-        System.out.println("Attempting to reschedule appointment ID: " + appointmentId);
+    public Appointment rescheduleAppointment(
+            String appointmentId,
+            AppointmentRescheduleDto rescheduleDto) {
 
         if (appointmentId == null || appointmentId.trim().isEmpty()) {
-            System.err.println("ERROR: Received null or empty appointmentId.");
-            throw new RuntimeException("Appointment ID cannot be null or empty.");
+            throw new RuntimeException("Appointment ID cannot be empty.");
         }
-        if (rescheduleDto == null || rescheduleDto.getAppointmentDateTime() == null || rescheduleDto.getAppointmentDateTime().trim().isEmpty()) {
-            System.err.println("ERROR: Received null or empty appointmentDateTime in rescheduleDto.");
-            throw new RuntimeException("New appointment date and time cannot be null or empty.");
+
+        if (rescheduleDto == null
+                || rescheduleDto.getAppointmentDateTime() == null
+                || rescheduleDto.getAppointmentDateTime().trim().isEmpty()) {
+            throw new RuntimeException("New appointment date and time is required.");
         }
 
         Appointment appointment = appointmentRepository.findById(appointmentId)
-                .orElseThrow(() -> {
-                    System.err.println("ERROR: Appointment not found with ID: " + appointmentId);
-                    return new RuntimeException("Appointment not found");
-                });
+                .orElseThrow(() -> new RuntimeException("Appointment not found."));
 
-        // Store old slot reference for freeing up
-        DoctorSlot oldSlot = appointment.getSlot();
-        LocalDateTime oldDateTime = appointment.getAppointmentDateTime();
-        LocalDateTime newDateTime = LocalDateTime.parse(rescheduleDto.getAppointmentDateTime());
-        String doctorId = appointment.getDoctor().getProfessionalId();
-        
-        System.out.println("Old DateTime: " + oldDateTime);
-        System.out.println("New DateTime: " + newDateTime);
-        System.out.println("Doctor ID: " + doctorId);
-        System.out.println("Old Slot ID: " + (oldSlot != null ? oldSlot.getSlotId() : "null"));
-
-        // Step 1: Free up the OLD slot using the slot reference (set isAvailable=true, isBooked=false)
-        if (oldSlot != null) {
-            try {
-                System.out.println("Freeing old slot ID: " + oldSlot.getSlotId());
-                slotService.freeSlot(oldSlot.getSlotId());
-                System.out.println("✅ Old slot freed up successfully (ID: " + oldSlot.getSlotId() + ")");
-            } catch (Exception e) {
-                System.err.println("⚠️ Could not free old slot: " + e.getMessage());
-                e.printStackTrace();
-            }
-        } else {
-            System.out.println("⚠️ No old slot reference found on appointment");
-        }
-
-        // Step 2: Book the NEW slot and link it to the appointment
-        if (rescheduleDto.getSlotId() != null) {
-            // Use the provided slotId directly
-            try {
-                System.out.println("Booking new slot ID: " + rescheduleDto.getSlotId());
-                slotService.markSlotAsBooked(rescheduleDto.getSlotId());
-                DoctorSlot newSlot = slotService.getSlotById(rescheduleDto.getSlotId());
-                appointment.setSlot(newSlot);
-                System.out.println("✅ New slot booked and linked (ID: " + rescheduleDto.getSlotId() + ")");
-            } catch (Exception e) {
-                System.err.println("⚠️ Could not book/link new slot: " + e.getMessage());
-                e.printStackTrace();
-            }
-        } else {
-            // Fallback: try to find slot by date/time
-            try {
-                slotService.bookSlot(doctorId, newDateTime.toLocalDate(), newDateTime.toLocalTime());
-                System.out.println("✅ New slot booked by date/time lookup");
-            } catch (Exception e) {
-                System.err.println("⚠️ Could not book new slot by date/time: " + e.getMessage());
-            }
-        }
-
-        // Step 4: Update appointment details
-        appointment.setAppointmentDateTime(newDateTime);
-        appointment.setReason(rescheduleDto.getReason()); 
-        appointment.setStatus(Appointment.AppointmentStatus.PENDING);
+        LocalDateTime newDateTime;
 
         try {
-            Appointment savedAppointment = appointmentRepository.save(appointment);
-            System.out.println("Successfully rescheduled appointment. New status: PENDING.");
+            newDateTime = LocalDateTime.parse(rescheduleDto.getAppointmentDateTime());
+        } catch (Exception e) {
+            throw new RuntimeException("Invalid appointment date and time format.");
+        }
 
-            try {
-                String doctorUserId = savedAppointment.getDoctor().getUser().getUserId();
-                String patientName = "Patient " + savedAppointment.getPatient().getFirstName() + " " + savedAppointment.getPatient().getLastName();
-                
-                notificationService.createNotification(
-                    doctorUserId, 
-                    patientName + " has requested to reschedule an appointment for " + 
-                    savedAppointment.getAppointmentDateTime().format(java.time.format.DateTimeFormatter.ofPattern("MMM dd, yyyy 'at' hh:mm a")),
-                    "APPOINTMENT_RESCHEDULE_REQUEST"
-                );
-            } catch (Exception e) {
-                System.err.println("\n\n--- NOTIFICATION SEND FAILED (Reschedule Appointment) ---");
-                e.printStackTrace(); 
-                System.err.println("--- END FAILURE ---\n");
+        DoctorSlot oldSlot = appointment.getSlot();
+
+        if (oldSlot != null) {
+            slotService.freeSlot(oldSlot.getSlotId());
+        }
+
+        if (rescheduleDto.getSlotId() != null) {
+            DoctorSlot newSlot = slotService.getSlotById(rescheduleDto.getSlotId());
+
+            if (newSlot == null) {
+                throw new RuntimeException("Selected slot not found.");
             }
 
-            System.out.println("----- rescheduleAppointment END -----");
-            return savedAppointment;
-        } catch (Exception e) {
-            System.err.println("ERROR: Failed to save rescheduled appointment update to database.");
-            e.printStackTrace(); 
-            throw new RuntimeException("Failed to save rescheduled appointment.");
+            if (!newSlot.getIsAvailable()) {
+                throw new RuntimeException("Selected slot is already booked.");
+            }
+
+            slotService.markSlotAsBooked(rescheduleDto.getSlotId());
+            appointment.setSlot(newSlot);
+        } else {
+            String doctorId = appointment.getDoctor().getProfessionalId();
+            slotService.bookSlot(doctorId, newDateTime.toLocalDate(), newDateTime.toLocalTime());
         }
+
+        appointment.setAppointmentDateTime(newDateTime);
+        appointment.setReason(rescheduleDto.getReason());
+        appointment.setStatus(Appointment.AppointmentStatus.PENDING);
+
+        Appointment savedAppointment = appointmentRepository.save(appointment);
+
+        notifyDoctorAboutRescheduleRequest(savedAppointment);
+
+        return savedAppointment;
     }
- 
+
     @Transactional
     public void updatePastApprovedAppointmentsToCompleted() {
-        System.out.println("Scheduled Task: Checking for past approved appointments...");
         LocalDateTime now = LocalDateTime.now();
 
         List<Appointment> pastAppointments = appointmentRepository.findByStatusAndAppointmentDateTimeBefore(
                 Appointment.AppointmentStatus.APPROVED,
-                now
-        );
-
-        if (pastAppointments.isEmpty()) {
-            System.out.println("Scheduled Task: No past approved appointments found to update.");
-            return;
-        }
-
-        System.out.println("Scheduled Task: Found " + pastAppointments.size() + " appointments to mark as COMPLETED.");
+                now);
 
         for (Appointment appointment : pastAppointments) {
             appointment.setStatus(Appointment.AppointmentStatus.COMPLETED);
-            appointmentRepository.save(appointment);
         }
-        System.out.println("Scheduled Task: Finished updating statuses.");
+
+        appointmentRepository.saveAll(pastAppointments);
     }
-   
+
+    private void notifyDoctorAboutNewAppointment(Appointment appointment) {
+        try {
+            Doctor doctor = appointment.getDoctor();
+            Patient patient = appointment.getPatient();
+
+            if (doctor.getUser() == null)
+                return;
+
+            String doctorUserId = doctor.getUser().getUserId();
+            String patientName = safeFullName(patient.getFirstName(), patient.getLastName());
+
+            notificationService.createNotification(
+                    doctorUserId,
+                    "New appointment request from " + patientName,
+                    "APPOINTMENT_REQUEST");
+
+            String doctorEmail = doctor.getUser().getEmail();
+
+            String subject = "New Appointment Request";
+            String htmlBody = buildAppointmentRequestEmail(appointment);
+
+            emailNotificationService.sendHtmlEmail(doctorEmail, subject, htmlBody);
+
+        } catch (Exception e) {
+            System.err.println("Doctor appointment notification failed: " + e.getMessage());
+        }
+    }
+
+    private void notifyPatientAboutAppointmentStatus(
+            Appointment appointment,
+            Appointment.AppointmentStatus status) {
+
+        try {
+            Patient patient = appointment.getPatient();
+            Doctor doctor = appointment.getDoctor();
+
+            if (patient.getUser() == null)
+                return;
+
+            String patientUserId = patient.getUser().getUserId();
+            String doctorName = "Dr. " + safeFullName(doctor.getFirstName(), doctor.getLastName());
+
+            String message = status == Appointment.AppointmentStatus.APPROVED
+                    ? "Your appointment with " + doctorName + " has been confirmed."
+                    : "Your appointment with " + doctorName + " was rejected.";
+
+            String notificationType = status == Appointment.AppointmentStatus.APPROVED
+                    ? "APPOINTMENT_APPROVED"
+                    : "APPOINTMENT_REJECTED";
+
+            notificationService.createNotification(
+                    patientUserId,
+                    message,
+                    notificationType);
+
+            if (status == Appointment.AppointmentStatus.APPROVED) {
+                User patientUser = userRepository.findById(patientUserId)
+                        .orElseThrow(() -> new RuntimeException("Patient user not found."));
+
+                String subject = "Your Appointment Has Been Confirmed";
+                String htmlBody = buildAppointmentConfirmedEmail(appointment);
+
+                emailNotificationService.sendHtmlEmail(patientUser.getEmail(), subject, htmlBody);
+            }
+
+        } catch (Exception e) {
+            System.err.println("Patient appointment notification failed: " + e.getMessage());
+        }
+    }
+
+    private void notifyDoctorAboutRescheduleRequest(Appointment appointment) {
+        try {
+            Doctor doctor = appointment.getDoctor();
+            Patient patient = appointment.getPatient();
+
+            if (doctor.getUser() == null)
+                return;
+
+            String doctorUserId = doctor.getUser().getUserId();
+            String patientName = safeFullName(patient.getFirstName(), patient.getLastName());
+
+            notificationService.createNotification(
+                    doctorUserId,
+                    patientName + " requested to reschedule an appointment for "
+                            + appointment.getAppointmentDateTime()
+                                    .format(DateTimeFormatter.ofPattern("MMM dd, yyyy 'at' hh:mm a")),
+                    "APPOINTMENT_RESCHEDULE_REQUEST");
+
+        } catch (Exception e) {
+            System.err.println("Reschedule notification failed: " + e.getMessage());
+        }
+    }
+
+    private String buildAppointmentRequestEmail(Appointment appointment) {
+        String patientName = safeFullName(
+                appointment.getPatient().getFirstName(),
+                appointment.getPatient().getLastName());
+
+        return "<!DOCTYPE html>" +
+                "<html><body style='font-family:Arial,sans-serif;background:#f8fafc;padding:24px;'>" +
+                "<div style='max-width:600px;margin:auto;background:#ffffff;padding:28px;border-radius:12px;'>" +
+                "<h2 style='color:#1e293b;'>New Appointment Request</h2>" +
+                "<p><strong>Patient:</strong> " + escapeHtml(patientName) + "</p>" +
+                "<p><strong>Date:</strong> " + appointment.getAppointmentDateTime().toLocalDate() + "</p>" +
+                "<p><strong>Time:</strong> " + appointment.getAppointmentDateTime().toLocalTime() + "</p>" +
+                "<p><strong>Reason:</strong> " + escapeHtml(appointment.getReason()) + "</p>" +
+                "<p>Please log in to MedVault to approve or reject this appointment.</p>" +
+                "</div>" +
+                "</body></html>";
+    }
+
+    private String buildAppointmentConfirmedEmail(Appointment appointment) {
+        String doctorName = "Dr. " + safeFullName(
+                appointment.getDoctor().getFirstName(),
+                appointment.getDoctor().getLastName());
+
+        return "<!DOCTYPE html>" +
+                "<html><body style='font-family:Arial,sans-serif;background:#f8fafc;padding:24px;'>" +
+                "<div style='max-width:600px;margin:auto;background:#ffffff;padding:28px;border-radius:12px;'>" +
+                "<h2 style='color:#16a34a;'>Appointment Confirmed</h2>" +
+                "<p>Your appointment has been confirmed.</p>" +
+                "<p><strong>Doctor:</strong> " + escapeHtml(doctorName) + "</p>" +
+                "<p><strong>Date:</strong> " + appointment.getAppointmentDateTime().toLocalDate() + "</p>" +
+                "<p><strong>Time:</strong> " + appointment.getAppointmentDateTime().toLocalTime() + "</p>" +
+                "</div>" +
+                "</body></html>";
+    }
+
+    private String safeFullName(String firstName, String lastName) {
+        String first = firstName == null ? "" : firstName.trim();
+        String last = lastName == null ? "" : lastName.trim();
+        return (first + " " + last).trim();
+    }
+
+    private String escapeHtml(String value) {
+        if (value == null)
+            return "";
+
+        return value
+                .replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;")
+                .replace("'", "&#39;");
+    }
 }

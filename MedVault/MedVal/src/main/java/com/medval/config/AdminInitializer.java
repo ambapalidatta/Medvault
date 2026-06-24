@@ -4,6 +4,7 @@ import com.medval.model.Admin;
 import com.medval.model.User;
 import com.medval.repository.AdminRepository;
 import com.medval.repository.UserRepository;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -12,23 +13,35 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 @Configuration
 public class AdminInitializer {
 
-    private static final String ADMIN_EMAIL = "admin@medvault.com";
-    private static final String ADMIN_PASSWORD = "admin123";
+    @Value("${app.admin.email:${ADMIN_EMAIL:admin@medvault.com}}")
+    private String adminEmail;
+
+    @Value("${app.admin.password:${ADMIN_PASSWORD:}}")
+    private String adminPassword;
 
     @Bean
     CommandLineRunner createDefaultAdmin(
             UserRepository userRepository,
             AdminRepository adminRepository,
-            PasswordEncoder passwordEncoder
-    ) {
+            PasswordEncoder passwordEncoder) {
         return args -> {
-            User adminUser = userRepository.findByEmail(ADMIN_EMAIL).orElseGet(User::new);
+            if (adminPassword == null || adminPassword.isBlank()) {
+                System.out.println("Default admin creation skipped: ADMIN_PASSWORD is not set.");
+                return;
+            }
 
-            adminUser.setEmail(ADMIN_EMAIL);
-            adminUser.setPasswordHash(passwordEncoder.encode(ADMIN_PASSWORD));
+            User adminUser = userRepository.findByEmail(adminEmail).orElseGet(User::new);
+
+            boolean isNewUser = adminUser.getUserId() == null;
+
+            adminUser.setEmail(adminEmail);
             adminUser.setRole("ADMIN");
             adminUser.setActive(true);
             adminUser.setVerified(true);
+
+            if (isNewUser || adminUser.getPasswordHash() == null || adminUser.getPasswordHash().isBlank()) {
+                adminUser.setPasswordHash(passwordEncoder.encode(adminPassword));
+            }
 
             userRepository.save(adminUser);
 
@@ -43,8 +56,8 @@ public class AdminInitializer {
             }
 
             System.out.println("Default admin is ready:");
-            System.out.println("Email: " + ADMIN_EMAIL);
-            System.out.println("Password: " + ADMIN_PASSWORD);
+            System.out.println("Email: " + adminEmail);
+            System.out.println("Password: [HIDDEN]");
         };
     }
 }

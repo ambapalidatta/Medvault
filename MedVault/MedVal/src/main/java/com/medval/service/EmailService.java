@@ -1,59 +1,65 @@
 package com.medval.service;
 
-import org.springframework.beans.factory.annotation.Autowired;
+import jakarta.mail.MessagingException;
+import jakarta.mail.internet.MimeMessage;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.mail.MailException;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
-
-import jakarta.mail.internet.MimeMessage;
 
 @Service
 public class EmailService {
 
-    @Autowired
-    private JavaMailSender mailSender;
+    private final JavaMailSender mailSender;
 
-    private static final String FROM_EMAIL = "ambapali890@gmail.com";
+    @Value("${mail.from.email:${SPRING_MAIL_USERNAME}}")
+    private String fromEmail;
 
-    /**
-     * Sends a simple plain-text email.
-     */
+    public EmailService(JavaMailSender mailSender) {
+        this.mailSender = mailSender;
+    }
+
+    @Async
     public void sendSimpleMessage(String to, String subject, String text) {
         try {
             SimpleMailMessage message = new SimpleMailMessage();
-            message.setFrom(FROM_EMAIL);
+
+            message.setFrom(fromEmail);
             message.setTo(to);
             message.setSubject(subject);
             message.setText(text);
 
             mailSender.send(message);
-            System.out.println("Email sent successfully to " + to);
 
-        } catch (Exception e) {
-            System.err.println("Error sending email: " + e.getMessage());
+            System.out.println("Simple email sent to " + to);
+
+        } catch (MailException e) {
+            System.err.println("Simple email failed for " + to + ": " + e.getMessage());
         }
     }
 
-    /**
-     * Sends an HTML email.
-     */
+    @Async
     public void sendHtmlMessage(String to, String subject, String htmlBody) {
         try {
-            MimeMessage message = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            MimeMessage mimeMessage = mailSender.createMimeMessage();
 
-            helper.setFrom(FROM_EMAIL);
+            MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, true, "UTF-8");
+
+            helper.setFrom(fromEmail);
             helper.setTo(to);
             helper.setSubject(subject);
-            helper.setText(htmlBody, true); // true = HTML
+            helper.setText(htmlBody, true);
 
-            mailSender.send(message);
-            System.out.println("HTML Email sent successfully to " + to);
+            mailSender.send(mimeMessage);
 
-        } catch (Exception e) {
-            System.err.println("Error sending HTML email: " + e.getMessage());
-            e.printStackTrace();
+            System.out.println("HTML email sent to " + to);
+
+        } catch (MessagingException | MailException e) {
+            System.err.println("HTML email failed for " + to + ": " + e.getMessage());
         }
     }
 }

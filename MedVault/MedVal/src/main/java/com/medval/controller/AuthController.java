@@ -1,11 +1,8 @@
 package com.medval.controller;
 
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import com.medval.dto.AdminRegistrationDto;
 import com.medval.dto.DoctorRegistrationDto;
@@ -18,8 +15,11 @@ import com.medval.service.AuthService;
 @RequestMapping("/api/auth")
 public class AuthController {
 
-    @Autowired
-    private AuthService authService;
+    private final AuthService authService;
+
+    public AuthController(AuthService authService) {
+        this.authService = authService;
+    }
 
     @PostMapping("/login")
     public ResponseEntity<?> loginUser(@RequestBody LoginRequestDto loginRequestDto) {
@@ -27,7 +27,9 @@ public class AuthController {
             UserInfoResponseDto userInfo = authService.loginUser(loginRequestDto);
             return ResponseEntity.ok(userInfo);
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
+            return ResponseEntity
+                    .status(HttpStatus.UNAUTHORIZED)
+                    .body("Invalid email or password");
         }
     }
 
@@ -35,7 +37,7 @@ public class AuthController {
     public ResponseEntity<?> registerPatient(@RequestBody PatientRegistrationDto registrationDto) {
         try {
             authService.registerPatient(registrationDto);
-            return ResponseEntity.ok("Patient registered successfully!");
+            return ResponseEntity.status(HttpStatus.CREATED).body("Patient registered successfully!");
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
@@ -45,7 +47,7 @@ public class AuthController {
     public ResponseEntity<?> registerDoctor(@RequestBody DoctorRegistrationDto registrationDto) {
         try {
             authService.registerDoctor(registrationDto);
-            return ResponseEntity.ok("Doctor registered successfully!");
+            return ResponseEntity.status(HttpStatus.CREATED).body("Doctor registered successfully!");
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
@@ -53,6 +55,8 @@ public class AuthController {
 
     @PostMapping("/register/admin")
     public ResponseEntity<?> registerAdmin(@RequestBody AdminRegistrationDto registrationDto) {
-        return ResponseEntity.status(403).body("Admin registration is disabled. Use the fixed admin login only.");
+        return ResponseEntity
+                .status(HttpStatus.FORBIDDEN)
+                .body("Admin registration is disabled.");
     }
 }

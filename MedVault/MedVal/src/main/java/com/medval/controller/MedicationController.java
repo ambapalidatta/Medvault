@@ -1,5 +1,16 @@
 package com.medval.controller;
 
+import com.medval.dto.MedicationDto;
+import com.medval.service.ConsentRequestService;
+import com.medval.service.MedicationService;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.util.StringUtils;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -7,33 +18,24 @@ import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.time.LocalDate;
 import java.util.List;
-
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.multipart.MultipartFile;
-
-import com.medval.dto.MedicationDto;
-import com.medval.service.ConsentRequestService;
-import com.medval.service.MedicationService;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api")
 public class MedicationController {
 
-    @Autowired
-    private MedicationService medicationService;
-    
-    @Autowired
-    private ConsentRequestService consentRequestService;
+    private final MedicationService medicationService;
+    private final ConsentRequestService consentRequestService;
 
-    private static final String UPLOAD_DIR = "MedVault/MedVal/uploads/";
+    @Value("${file.upload-dir:uploads}")
+    private String uploadDir;
+
+    public MedicationController(
+            MedicationService medicationService,
+            ConsentRequestService consentRequestService) {
+        this.medicationService = medicationService;
+        this.consentRequestService = consentRequestService;
+    }
 
     @PostMapping("/medications/uploads")
     public ResponseEntity<?> uploadPrescription(
@@ -45,50 +47,64 @@ public class MedicationController {
             @RequestParam("endDate") String endDate,
             @RequestParam("prescribedBy") String prescribedBy,
             @RequestParam(value = "notes", required = false) String notes,
-            @RequestParam(value = "file", required = false) MultipartFile file
-    ) {
-        try {
-            System.out.println("✅ Received prescription upload request for patientId = " + patientId);
+            @RequestParam(value = "file", required = false) MultipartFile file) {
 
-            String filePath = null;
+        try {
+            String publicFileUrl = null;
+
             if (file != null && !file.isEmpty()) {
-                // Validate file type
                 String contentType = file.getContentType();
-                if (contentType == null || !(contentType.equals("image/jpeg") || 
-                    contentType.equals("image/jpg") || 
-                    contentType.equals("application/pdf"))) {
+
+                if (contentType == null ||
+                        !(contentType.equals("image/jpeg")
+                                || contentType.equals("image/jpg")
+                                || contentType.equals("application/pdf"))) {
                     return ResponseEntity.badRequest()
-                        .body("Invalid file type. Only JPG, JPEG, and PDF files are allowed.");
+                            .body(Map.of("message", "Invalid file type. Only JPG, JPEG, and PDF files are allowed."));
                 }
 
-                // Create absolute path for uploads
-                Path currentPath = Paths.get("").toAbsolutePath();
-                Path uploadPath = currentPath.resolve(UPLOAD_DIR);
-                Files.createDirectories(uploadPath);
+                String originalFileName = StringUtils.cleanPath(
+                        file.getOriginalFilename() == null ? "prescription" : file.getOriginalFilename());
 
-                String fileName = System.currentTimeMillis() + "_" + file.getOriginalFilename();
-                Path path = uploadPath.resolve(fileName);
-                Files.copy(file.getInputStream(), path, StandardCopyOption.REPLACE_EXISTING);
-                filePath = path.toString();
-                System.out.println("✅ File saved to: " + filePath);
+                if (originalFileName.contains("..")) {
+                    return ResponseEntity.badRequest()
+                            .body(Map.of("message", "Invalid file name."));
+                }
+
+                Path uploadPath = Paths.get(uploadDir).toAbsolutePath().normalize();
+
+                if (!Files.exists(uploadPath)) {
+                    Files.createDirectories(uploadPath);
+                }
+
+                String fileName = System.currentTimeMillis() + "_" + originalFileName;
+                Path filePath = uploadPath.resolve(fileName).normalize();
+
+                if (!filePath.startsWith(uploadPath)) {
+                    return ResponseEntity.badRequest()
+                            .body(Map.of("message", "Invalid upload path."));
+                }
+
+                Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
+                publicFileUrl = "/uploads/" + fileName;
             }
 
-            // Validate and parse dates
             LocalDate parsedStartDate;
             LocalDate parsedEndDate;
+
             try {
                 parsedStartDate = LocalDate.parse(startDate);
                 parsedEndDate = LocalDate.parse(endDate);
+
                 if (parsedEndDate.isBefore(parsedStartDate)) {
                     return ResponseEntity.badRequest()
-                        .body("End date cannot be before start date");
+                            .body(Map.of("message", "End date cannot be before start date."));
                 }
             } catch (Exception e) {
                 return ResponseEntity.badRequest()
-                    .body("Invalid date format. Use YYYY-MM-DD format");
+                        .body(Map.of("message", "Invalid date format. Use YYYY-MM-DD format."));
             }
 
-            // Create and populate the DTO
             MedicationDto medicationDto = new MedicationDto();
             medicationDto.setPatientId(patientId);
             medicationDto.setMedicationName(medicationName);
@@ -98,21 +114,23 @@ public class MedicationController {
             medicationDto.setEndDate(parsedEndDate);
             medicationDto.setPrescribedBy(prescribedBy);
             medicationDto.setNotes(notes);
-            medicationDto.setDocumentPath(filePath);
+            medicationDto.setDocumentPath(publicFileUrl);
 
-            // Save to database
             MedicationDto saved = medicationService.save(medicationDto);
-            System.out.println("✅ Prescription saved successfully");
+
             return ResponseEntity.ok(saved);
-            
+
         } catch (IOException e) {
-            System.err.println("❌ Error saving file: " + e.getMessage());
+            System.err.println("Prescription file upload failed: " + e.getMessage());
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("message", "Failed to upload prescription file."));
+        } catch (RuntimeException e) {
             return ResponseEntity.badRequest()
-                .body("Failed to upload file: " + e.getMessage());
+                    .body(Map.of("message", e.getMessage()));
         } catch (Exception e) {
-            System.err.println("❌ Error processing prescription: " + e.getMessage());
-            return ResponseEntity.badRequest()
-                .body("Error processing prescription: " + e.getMessage());
+            System.err.println("Prescription upload failed: " + e.getMessage());
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("message", "Failed to upload prescription."));
         }
     }
 
@@ -120,21 +138,41 @@ public class MedicationController {
     public ResponseEntity<?> getByPatientId(
             @PathVariable String patientId,
             @RequestParam(required = false) String doctorId) {
-        
-        // If doctorId is provided, check consent before returning medications
-        if (doctorId != null && !doctorId.isEmpty()) {
-            boolean hasPermission = consentRequestService.checkPermission(doctorId, patientId);
-            if (!hasPermission) {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body("Access denied. You need patient consent to view their prescriptions.");
+
+        try {
+            if (doctorId != null && !doctorId.isBlank()) {
+                boolean hasPermission = consentRequestService.checkPermission(doctorId, patientId);
+
+                if (!hasPermission) {
+                    return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                            .body(Map.of("message", "Access denied. Patient consent is required."));
+                }
             }
+
+            return ResponseEntity.ok(medicationService.getByPatientId(patientId));
+
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("message", e.getMessage()));
+        } catch (Exception e) {
+            System.err.println("Fetching medications failed: " + e.getMessage());
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("message", "Failed to fetch medications."));
         }
-        
-        return ResponseEntity.ok(medicationService.getByPatientId(patientId));
     }
 
     @GetMapping("/prescriptions/doctor/{doctorId}")
-    public ResponseEntity<List<MedicationDto>> getByDoctorId(@PathVariable String doctorId) {
-        return ResponseEntity.ok(medicationService.getByDoctorId(doctorId));
+    public ResponseEntity<?> getByDoctorId(@PathVariable String doctorId) {
+        try {
+            List<MedicationDto> prescriptions = medicationService.getByDoctorId(doctorId);
+            return ResponseEntity.ok(prescriptions);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("message", e.getMessage()));
+        } catch (Exception e) {
+            System.err.println("Fetching doctor prescriptions failed: " + e.getMessage());
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("message", "Failed to fetch prescriptions."));
+        }
     }
 }

@@ -2,14 +2,20 @@ package com.medval.security;
 
 import java.util.Arrays;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.AuthenticationProvider;
+import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
+import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -18,63 +24,126 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 @EnableWebSecurity
 public class SecurityConfig {
 
-    @Bean
-    public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
-    }
+        private final JwtAuthenticationFilter jwtAuthenticationFilter;
+        private final CustomUserDetailsService customUserDetailsService;
 
-    @Bean
-    public CorsConfigurationSource corsConfigurationSource() {
-        CorsConfiguration configuration = new CorsConfiguration();
+        @Value("${frontend.url:http://localhost:5173}")
+        private String frontendUrl;
 
-        // Use allowedOriginPatterns instead of allowedOrigins to support wildcards with
-        // credentials
-        configuration.setAllowedOriginPatterns(Arrays.asList(
-                "http://localhost:*",
-                "http://127.0.0.1:*",
-                "https://medvault-frontend-jy9w.onrender.com",
-                "https://*.onrender.com"));
+        public SecurityConfig(
+                        JwtAuthenticationFilter jwtAuthenticationFilter,
+                        CustomUserDetailsService customUserDetailsService) {
+                this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+                this.customUserDetailsService = customUserDetailsService;
+        }
 
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(
-                Arrays.asList("Authorization", "Content-Type", "Content-Disposition", "Content-Length", "*"));
-        configuration.setExposedHeaders(Arrays.asList("Authorization", "Content-Type"));
+        @Bean
+        public PasswordEncoder passwordEncoder() {
+                return new BCryptPasswordEncoder();
+        }
 
-        // Allow credentials (cookies/headers)
-        configuration.setAllowCredentials(true);
+        @Bean
+        public CorsConfigurationSource corsConfigurationSource() {
+                CorsConfiguration configuration = new CorsConfiguration();
 
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", configuration);
-        return source;
-    }
+                configuration.setAllowedOrigins(Arrays.asList(
+                                "http://localhost:5173",
+                                "http://127.0.0.1:5173",
+                                frontendUrl));
 
-    @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        http
-                // 1. Disable CSRF
-                .csrf(csrf -> csrf.disable())
+                configuration.setAllowedMethods(Arrays.asList(
+                                "GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
 
-                // 2. Configure CORS using the bean above
-                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                configuration.setAllowedHeaders(Arrays.asList(
+                                "Authorization",
+                                "Content-Type",
+                                "Content-Disposition",
+                                "Content-Length"));
 
-                // 3. Stateless Session
-                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                configuration.setExposedHeaders(Arrays.asList(
+                                "Authorization",
+                                "Content-Type"));
 
-                // 4. AUTHORIZATION
-                .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/notifications/**").permitAll()
-                        .requestMatchers("/api/auth/**").permitAll()
-                        .requestMatchers("/api/doctors/**", "/api/patients/**", "/api/slots/**").permitAll()
-                        .requestMatchers("/api/appointments/**", "/api/emergency-requests/**").permitAll()
-                        // Allow common public resources
-                        .requestMatchers("/api/medications/**", "/api/records/**", "/api/qualifications/**").permitAll()
-                        .requestMatchers("/api/consent-requests/**").permitAll()
-                        // Allow static file uploads to be served
-                        .requestMatchers("/uploads/**", "/api/files/**").permitAll()
+                configuration.setAllowCredentials(true);
+                configuration.setMaxAge(3600L);
 
-                        // Allow everything else for now (to prevent 403 errors during testing)
-                        .anyRequest().permitAll());
+                UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
 
-        return http.build();
-    }
+                source.registerCorsConfiguration("/**", configuration);
+                return source;
+        }
+
+        @Bean
+        public AuthenticationProvider authenticationProvider() {
+                DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider();
+
+                authProvider.setUserDetailsService(customUserDetailsService);
+                authProvider.setPasswordEncoder(passwordEncoder());
+
+                return authProvider;
+        }
+
+        @Bean
+        public AuthenticationManager authenticationManager(
+                        AuthenticationConfiguration config) throws Exception {
+                return config.getAuthenticationManager();
+        }
+
+        @Bean
+        public SecurityFilterChain securityFilterChain(
+                        HttpSecurity http) throws Exception {
+
+                http
+                                .csrf(csrf -> csrf.disable())
+
+                                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+
+                                .sessionManagement(session -> session.sessionCreationPolicy(
+                                                SessionCreationPolicy.STATELESS))
+
+                                .authenticationProvider(authenticationProvider())
+
+                                .authorizeHttpRequests(auth -> auth
+
+                                                .requestMatchers(
+                                                                "/api/auth/**",
+                                                                "/actuator/health",
+                                                                "/uploads/**",
+                                                                "/api/reviews/**")
+                                                .permitAll()
+
+                                                .requestMatchers(
+                                                                "/api/admin/**")
+                                                .hasRole("ADMIN")
+
+                                                .requestMatchers(
+                                                                "/api/doctor/**",
+                                                                "/api/doctors/**",
+                                                                "/api/slots/**",
+                                                                "/api/qualifications/**")
+                                                .hasAnyRole("DOCTOR", "ADMIN")
+
+                                                .requestMatchers(
+                                                                "/api/patient/**",
+                                                                "/api/patients/**",
+                                                                "/api/records/**",
+                                                                "/api/appointments/**",
+                                                                "/api/emergency-requests/**",
+                                                                "/api/consent-requests/**",
+                                                                "/api/notifications/**")
+                                                .hasAnyRole("PATIENT", "DOCTOR", "ADMIN")
+
+                                                .requestMatchers(
+                                                                "/api/medications/**",
+                                                                "/api/files/**")
+                                                .hasAnyRole("PATIENT", "DOCTOR", "ADMIN")
+
+                                                .anyRequest().authenticated())
+
+                                .addFilterBefore(
+                                                jwtAuthenticationFilter,
+                                                UsernamePasswordAuthenticationFilter.class);
+
+                return http.build();
+        }
 }

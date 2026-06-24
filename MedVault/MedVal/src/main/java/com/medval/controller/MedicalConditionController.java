@@ -1,94 +1,82 @@
 package com.medval.controller;
 
-import java.util.List;
-import java.util.stream.Collectors;
-
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
-
 import com.medval.dto.MedicalConditionDto;
 import com.medval.model.MedicalCondition;
 import com.medval.service.MedicalConditionService;
 
-import jakarta.validation.Valid;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/medical-conditions")
 public class MedicalConditionController {
 
-    @Autowired
-    private MedicalConditionService conditionService;
+    private final MedicalConditionService conditionService;
 
-    // ... (GET, POST, PUT, DELETE methods are all unchanged) ...
+    public MedicalConditionController(MedicalConditionService conditionService) {
+        this.conditionService = conditionService;
+    }
 
-    // GET conditions for a specific patient
     @GetMapping("/patient/{patientId}")
-    public ResponseEntity<List<MedicalConditionDto>> getConditionsForPatient(@PathVariable String patientId) { 
-        List<MedicalCondition> conditions = conditionService.getConditionsByPatientId(patientId);
-        List<MedicalConditionDto> dtos = conditions.stream().map(this::convertToDto).collect(Collectors.toList());
-        return ResponseEntity.ok(dtos);
-    }
-
-    // POST a new condition for a patient
-    @PostMapping
-    public ResponseEntity<MedicalConditionDto> addCondition(@Valid @RequestBody MedicalConditionDto dto) {
-        if (dto.getPatientId() == null || dto.getConditionName() == null) {
-        return ResponseEntity.badRequest().build();
-    }
-    try {
-            MedicalCondition savedCondition = conditionService.addCondition(dto);
-            return ResponseEntity.ok(convertToDto(savedCondition));
-        } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().body(null); 
-        }
-    }
-
-    // PUT (Update) an existing condition
-    @PutMapping("/{conditionId}")
-    public ResponseEntity<MedicalConditionDto> updateCondition(@PathVariable String conditionId, @Valid @RequestBody MedicalConditionDto dto) { 
+    public ResponseEntity<?> getConditionsByPatient(@PathVariable String patientId) {
         try {
-            MedicalCondition updatedCondition = conditionService.updateCondition(conditionId, dto);
-            return ResponseEntity.ok(convertToDto(updatedCondition));
-        }
-        catch (SecurityException e) {
-             return ResponseEntity.status(403).body(null); 
-        }
-        catch (RuntimeException e) {
-            return ResponseEntity.badRequest().body(null);
+            List<MedicalCondition> conditions = conditionService.getConditionsByPatientId(patientId);
+            return ResponseEntity.ok(conditions);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+        } catch (Exception e) {
+            System.err.println("Fetching medical conditions failed: " + e.getMessage());
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("message", "Failed to fetch medical conditions."));
         }
     }
-    // DELETE a condition
+
+    @PostMapping
+    public ResponseEntity<?> addCondition(@RequestBody MedicalConditionDto dto) {
+        try {
+            MedicalCondition condition = conditionService.addCondition(dto);
+            return ResponseEntity.ok(condition);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+        } catch (Exception e) {
+            System.err.println("Adding medical condition failed: " + e.getMessage());
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("message", "Failed to add medical condition."));
+        }
+    }
+
+    @PutMapping("/{conditionId}")
+    public ResponseEntity<?> updateCondition(
+            @PathVariable String conditionId,
+            @RequestBody MedicalConditionDto dto) {
+        try {
+            MedicalCondition condition = conditionService.updateCondition(conditionId, dto);
+            return ResponseEntity.ok(condition);
+        } catch (SecurityException e) {
+            return ResponseEntity.status(403).body(Map.of("message", e.getMessage()));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+        } catch (Exception e) {
+            System.err.println("Updating medical condition failed: " + e.getMessage());
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("message", "Failed to update medical condition."));
+        }
+    }
+
     @DeleteMapping("/{conditionId}")
-    public ResponseEntity<Void> deleteCondition(@PathVariable String conditionId) { 
+    public ResponseEntity<?> deleteCondition(@PathVariable String conditionId) {
         try {
             conditionService.deleteCondition(conditionId);
-            return ResponseEntity.noContent().build(); 
+            return ResponseEntity.ok(Map.of("message", "Medical condition deleted successfully."));
         } catch (RuntimeException e) {
-            return ResponseEntity.notFound().build();
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+        } catch (Exception e) {
+            System.err.println("Deleting medical condition failed: " + e.getMessage());
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("message", "Failed to delete medical condition."));
         }
-    }
-
-
-    // Helper to convert Entity to DTO
-    private MedicalConditionDto convertToDto(MedicalCondition condition) {
-        MedicalConditionDto dto = new MedicalConditionDto();
-        
-        // --- THIS IS THE FIX ---
-        dto.setConditionId(condition.getConditionId()); // Changed from condition.getId()
-
-        dto.setPatientId(condition.getPatient().getPatientId());
-        dto.setConditionName(condition.getConditionName());
-        dto.setDiagnosedDate(condition.getDiagnosedDate() != null ? condition.getDiagnosedDate().toString() : null);
-        dto.setStatus(condition.getStatus());
-        dto.setNotes(condition.getNotes());
-        return dto;
     }
 }

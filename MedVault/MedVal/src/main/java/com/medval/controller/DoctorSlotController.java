@@ -1,31 +1,37 @@
 package com.medval.controller;
 
-import java.time.LocalDate;
-import java.util.List;
+import com.medval.dto.DoctorSlotDto;
+import com.medval.service.DoctorSlotService;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import com.medval.dto.DoctorSlotDto;
-import com.medval.service.DoctorSlotService;
+import java.time.LocalDate;
+import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/slots")
-@CrossOrigin(origins = "http://localhost:5173")
 public class DoctorSlotController {
 
-    @Autowired
-    private DoctorSlotService slotService;
+    private final DoctorSlotService slotService;
+
+    public DoctorSlotController(DoctorSlotService slotService) {
+        this.slotService = slotService;
+    }
 
     @PostMapping("/create")
     public ResponseEntity<?> createSlots(@RequestBody DoctorSlotDto dto) {
         try {
             List<DoctorSlotDto> slots = slotService.createSlots(dto);
             return ResponseEntity.ok(slots);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
+            System.err.println("Slot creation failed: " + e.getMessage());
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("message", "Failed to create slots."));
         }
     }
 
@@ -36,8 +42,12 @@ public class DoctorSlotController {
         try {
             List<DoctorSlotDto> slots = slotService.getAvailableSlots(doctorId, date);
             return ResponseEntity.ok(slots);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
+            System.err.println("Fetching available slots failed: " + e.getMessage());
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("message", "Failed to fetch available slots."));
         }
     }
 
@@ -46,8 +56,12 @@ public class DoctorSlotController {
         try {
             List<DoctorSlotDto> slots = slotService.getDoctorSlots(doctorId);
             return ResponseEntity.ok(slots);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
+            System.err.println("Fetching doctor slots failed: " + e.getMessage());
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("message", "Failed to fetch doctor slots."));
         }
     }
 
@@ -58,8 +72,12 @@ public class DoctorSlotController {
         try {
             List<DoctorSlotDto> slots = slotService.searchAvailableSlots(doctorName, date);
             return ResponseEntity.ok(slots);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
+            System.err.println("Slot search failed: " + e.getMessage());
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("message", "Failed to search slots."));
         }
     }
 }

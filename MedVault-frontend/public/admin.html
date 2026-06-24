@@ -9,7 +9,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone@7.23.9/babel.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
@@ -452,13 +452,44 @@
 <body class="admin-bg">
 <div id="root"></div>
 <!-- React Application -->
-<script type="text/babel" data-type="module">
-    import * as LucideReact from "https://esm.sh/lucide-react@0.263.1";
+<script type="text/babel" data-presets="react">
     const { useState, useEffect, useMemo } = React;
 
     const Icon = ({ name, size = 20, className = "" }) => {
-        const LucideIcon = LucideReact[name];
-        return LucideIcon ? <LucideIcon size={size} className={className} /> : null;
+        const iconNode = window.lucide?.icons?.[name];
+
+        if (!iconNode || !Array.isArray(iconNode)) {
+            return null;
+        }
+
+        const renderNode = (node, index) => {
+            if (!Array.isArray(node)) return null;
+
+            const [tag, attrs = {}, children = []] = node;
+
+            return React.createElement(
+                tag,
+                { ...attrs, key: index },
+                Array.isArray(children) ? children.map(renderNode) : null
+            );
+        };
+
+        return React.createElement(
+            "svg",
+            {
+                width: size,
+                height: size,
+                viewBox: "0 0 24 24",
+                fill: "none",
+                stroke: "currentColor",
+                strokeWidth: "2",
+                strokeLinecap: "round",
+                strokeLinejoin: "round",
+                className,
+                "aria-hidden": "true"
+            },
+            iconNode.map(renderNode)
+        );
     };
 
     const fetchAdminProfile = async (email = null) => {
@@ -467,7 +498,7 @@
             const adminEmail = email || localStorage.getItem('adminEmail') || 'admin@medvault.com';
             console.log('🔍 Fetching admin profile for:', adminEmail);
             
-            const response = await fetch(`${API_BASE_URL}/admin/profile/email/${encodeURIComponent(adminEmail)}`);
+            const response = await authFetch(`${API_BASE_URL}/admin/profile/email/${encodeURIComponent(adminEmail)}`);
             console.log('📡 Response status:', response.status);
             
             if (response.ok) {
@@ -533,6 +564,12 @@
                     const userData = await response.json();
                     // Check if user is admin
                     if (userData.role && userData.role.toUpperCase() === 'ADMIN') {
+                        if (!userData.token) {
+                            setError('Login failed: token missing from server response.');
+                            return;
+                        }
+
+                        sessionStorage.setItem('adminAuthToken', userData.token);
                         localStorage.setItem('adminEmail', userData.email || email);
                         onLogin('admin', userData.email || email);
                     } else {
@@ -663,18 +700,34 @@
     }
 
     // API Configuration
-    const API_BASE_URL = 'https://medvault-backend-ni3i.onrender.com/api';
+    const API_BASE_URL = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+        ? 'http://localhost:8080/api'
+        : 'https://medvault-backend-ni3i.onrender.com/api';
+
+    // JWT token helper for admin protected routes
+    const getAdminAuthToken = () => sessionStorage.getItem('adminAuthToken');
+
+    const authFetch = async (url, options = {}) => {
+        const token = getAdminAuthToken();
+        const headers = {
+            'Content-Type': 'application/json',
+            ...(options.headers || {})
+        };
+
+        if (token) {
+            headers.Authorization = `Bearer ${token}`;
+        }
+
+        return fetch(url, {
+            ...options,
+            headers
+        });
+    };
 
     // Helper function for safe API calls
     const safeFetch = async (url, options = {}) => {
         try {
-            const response = await fetch(url, {
-                ...options,
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...options.headers
-                }
-            });
+            const response = await authFetch(url, options);
             
             if (!response.ok) {
                 const errorText = await response.text();
@@ -778,7 +831,7 @@
             const userId = user?.userId || user?.uid;
             if (!userId) return;
             try {
-                const response = await fetch(`${API_BASE_URL}/notifications/user/${userId}`);
+                const response = await authFetch(`${API_BASE_URL}/notifications/user/${userId}`);
                 if (response.ok) {
                     const data = await response.json();
                     setNotifications(data);
@@ -791,7 +844,7 @@
         
         const handleNotificationClick = async (notification) => {
             try {
-                await fetch(`${API_BASE_URL}/notifications/${notification.notificationId}/read`, {
+                await authFetch(`${API_BASE_URL}/notifications/${notification.notificationId}/read`, {
                     method: 'PUT'
                 });
                 // Remove from list immediately
@@ -807,7 +860,7 @@
             const userId = user?.userId || user?.uid;
             if (!userId) return;
             try {
-                await fetch(`${API_BASE_URL}/notifications/user/${userId}/read-all`, {
+                await authFetch(`${API_BASE_URL}/notifications/user/${userId}/read-all`, {
                     method: 'PUT'
                 });
                 setNotifications([]);
@@ -892,7 +945,7 @@
             const fetchAdminProfile = async () => {
                 if (user?.email) {
                     try {
-                        const response = await fetch(`${API_BASE_URL}/admin/profile/email/${encodeURIComponent(user.email)}`);
+                        const response = await authFetch(`${API_BASE_URL}/admin/profile/email/${encodeURIComponent(user.email)}`);
                         if (response.ok) {
                             const profile = await response.json();
                             setAdminProfile(profile);
@@ -951,7 +1004,7 @@
                             let reviewCount = d.reviewCount || d.totalReviews || 0;
                             
                             try {
-                                const reviewsRes = await fetch(`${API_BASE_URL}/reviews/doctor/${doctorId}`);
+                                const reviewsRes = await authFetch(`${API_BASE_URL}/reviews/doctor/${doctorId}`);
                                 if (reviewsRes.ok) {
                                     const reviews = await reviewsRes.json();
                                     if (reviews.length > 0) {
@@ -1308,7 +1361,7 @@
         const handleVerifyDoctor = async (doctorId) => {
             try {
                 console.log('🔄 Verifying doctor:', doctorId);
-                const response = await fetch(`${API_BASE_URL}/admin/doctors/${doctorId}/verify`, {
+                const response = await authFetch(`${API_BASE_URL}/admin/doctors/${doctorId}/verify`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' }
                 });
@@ -1337,7 +1390,7 @@
             }
             
             try {
-                const response = await fetch(`${API_BASE_URL}/admin/issues/${selectedIssueForReply.id}/status`, {
+                const response = await authFetch(`${API_BASE_URL}/admin/issues/${selectedIssueForReply.id}/status`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 
@@ -1387,7 +1440,7 @@
                 console.log('🔄 Fetching patient details for ID:', patientId);
                 
                 // Fetch basic patient data first
-                const patientRes = await fetch(`${API_BASE_URL}/patients/${patientId}`);
+                const patientRes = await authFetch(`${API_BASE_URL}/patients/${patientId}`);
                 const data = patientRes.ok ? await patientRes.json() : null;
                 
                 if (!data) {
@@ -1403,22 +1456,22 @@
                 let records = [];
                 
                 try {
-                    const conditionsRes = await fetch(`${API_BASE_URL}/medical-conditions/patient/${patientId}`);
+                    const conditionsRes = await authFetch(`${API_BASE_URL}/medical-conditions/patient/${patientId}`);
                     if (conditionsRes.ok) conditions = await conditionsRes.json();
                 } catch (e) { console.log('ℹ️ Medical conditions endpoint not available'); }
                 
                 try {
-                    const prescriptionsRes = await fetch(`${API_BASE_URL}/medications/patient/${patientId}`);
+                    const prescriptionsRes = await authFetch(`${API_BASE_URL}/medications/patient/${patientId}`);
                     if (prescriptionsRes.ok) prescriptions = await prescriptionsRes.json();
                 } catch (e) { console.log('ℹ️ Prescriptions endpoint not available'); }
                 
                 try {
-                    const recordsRes = await fetch(`${API_BASE_URL}/health-records/patient/${patientId}`);
+                    const recordsRes = await authFetch(`${API_BASE_URL}/health-records/patient/${patientId}`);
                     if (recordsRes.ok) {
                         records = await recordsRes.json();
                     } else {
                         // Fallback to alternative endpoint
-                        const altRecordsRes = await fetch(`${API_BASE_URL}/records/patient/${patientId}`);
+                        const altRecordsRes = await authFetch(`${API_BASE_URL}/records/patient/${patientId}`);
                         if (altRecordsRes.ok) records = await altRecordsRes.json();
                     }
                 } catch (e) { console.log('ℹ️ Health records endpoint not available'); }
@@ -1467,7 +1520,7 @@
                 console.log('🔄 Fetching doctor details for ID:', doctorId);
                 
                 // Fetch basic doctor data first
-                const doctorRes = await fetch(`${API_BASE_URL}/doctors/${doctorId}`);
+                const doctorRes = await authFetch(`${API_BASE_URL}/doctors/${doctorId}`);
                 const data = doctorRes.ok ? await doctorRes.json() : null;
                 
                 if (!data) {
@@ -1485,7 +1538,7 @@
                 let averageRating = data.averageRating || 0;
                 
                 try {
-                    const slotsRes = await fetch(`${API_BASE_URL}/slots/doctor/${doctorId}`);
+                    const slotsRes = await authFetch(`${API_BASE_URL}/slots/doctor/${doctorId}`);
                     if (slotsRes.ok) {
                         slots = await slotsRes.json();
                         console.log('✅ Slots fetched:', slots);
@@ -1493,7 +1546,7 @@
                 } catch (e) { console.log('ℹ️ Slots endpoint not available'); }
                 
                 try {
-                    const qualificationsRes = await fetch(`${API_BASE_URL}/qualifications/doctor/${doctorId}`);
+                    const qualificationsRes = await authFetch(`${API_BASE_URL}/qualifications/doctor/${doctorId}`);
                     if (qualificationsRes.ok) {
                         qualifications = await qualificationsRes.json();
                         console.log('✅ Qualifications fetched:', qualifications);
@@ -1502,7 +1555,7 @@
                 
                 try {
                     // Fetch prescriptions uploaded by this doctor
-                    const prescriptionsRes = await fetch(`${API_BASE_URL}/prescriptions/doctor/${doctorId}`);
+                    const prescriptionsRes = await authFetch(`${API_BASE_URL}/prescriptions/doctor/${doctorId}`);
                     if (prescriptionsRes.ok) {
                         prescriptions = await prescriptionsRes.json();
                         console.log('✅ Prescriptions fetched:', prescriptions);
@@ -1511,7 +1564,7 @@
                 
                 try {
                     // Fetch reviews from /api/reviews/doctor/{doctorId}
-                    const reviewsRes = await fetch(`${API_BASE_URL}/reviews/doctor/${doctorId}`);
+                    const reviewsRes = await authFetch(`${API_BASE_URL}/reviews/doctor/${doctorId}`);
                     if (reviewsRes.ok) {
                         reviews = await reviewsRes.json();
                         console.log('✅ Reviews fetched:', reviews);
@@ -1523,7 +1576,7 @@
                         }
                     } else {
                         // Fallback: try to get reviews from appointments
-                        const appointmentsRes = await fetch(`${API_BASE_URL}/appointments/doctor/${doctorId}`);
+                        const appointmentsRes = await authFetch(`${API_BASE_URL}/appointments/doctor/${doctorId}`);
                         if (appointmentsRes.ok) {
                             const appointments = await appointmentsRes.json();
                             reviews = appointments.filter(apt => apt.review && apt.rating).map(apt => ({
@@ -1579,7 +1632,7 @@
         const fetchAppointmentDetails = async (appointmentId) => {
             try {
                 console.log('🔄 Fetching appointment details for ID:', appointmentId);
-                const response = await fetch(`${API_BASE_URL}/appointments/${appointmentId}`);
+                const response = await authFetch(`${API_BASE_URL}/appointments/${appointmentId}`);
                 if (response.ok) {
                     const data = await response.json();
                     console.log('✅ Appointment details fetched:', data);
@@ -1648,7 +1701,7 @@
             try {
                 console.log('🔄 Sending reminder for emergency:', emergencyId);
                 // Call the backend endpoint to send reminder notification to doctor
-                const response = await fetch(`${API_BASE_URL}/admin/emergency-requests/${emergencyId}/remind`, {
+                const response = await authFetch(`${API_BASE_URL}/admin/emergency-requests/${emergencyId}/remind`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' }
                 });
@@ -1667,7 +1720,7 @@
 
         const handleVerifyDocument = async (docId) => {
             try {
-                const response = await fetch(`${API_BASE_URL}/admin/doctors/qualifications/${docId}/verify`, {
+                const response = await authFetch(`${API_BASE_URL}/admin/doctors/qualifications/${docId}/verify`, {
                     method: 'PUT'
                 });
                 if (response.ok) {
@@ -3813,7 +3866,7 @@
                                                         onClick={async () => {
                                                             if (confirm(`Are you sure you want to delete patient ${patient.name}?`)) {
                                                                 try {
-                                                                    const response = await fetch(`${API_BASE_URL}/admin/patients/${patient.id}`, { method: 'DELETE' });
+                                                                    const response = await authFetch(`${API_BASE_URL}/admin/patients/${patient.id}`, { method: 'DELETE' });
                                                                     if (response.ok) {
                                                                         alert('✅ Patient deleted successfully!');
                                                                         fetchAllData();
@@ -3976,7 +4029,7 @@
                                                         onClick={async () => {
                                                             if (confirm(`Are you sure you want to delete Dr. ${doctor.name}?`)) {
                                                                 try {
-                                                                    const response = await fetch(`${API_BASE_URL}/admin/doctors/${doctor.id}`, { method: 'DELETE' });
+                                                                    const response = await authFetch(`${API_BASE_URL}/admin/doctors/${doctor.id}`, { method: 'DELETE' });
                                                                     if (response.ok) {
                                                                         alert('✅ Doctor deleted successfully!');
                                                                         fetchAllData();
@@ -4319,7 +4372,7 @@
                     setShowRescheduleModal(true);
                     // Fetch ALL slots for the doctor (including booked ones)
                     try {
-                        const response = await fetch(`${API_BASE_URL}/slots/doctor/${apt.doctorId}`);
+                        const response = await authFetch(`${API_BASE_URL}/slots/doctor/${apt.doctorId}`);
                         if (response.ok) {
                             const slots = await response.json();
                             // Store all slots (for checking if date has any slots)
@@ -4423,7 +4476,7 @@
                                                             onClick={async () => {
                                                                 try {
                                                                     // Verify the doctor using their doctorId
-                                                                    const response = await fetch(`${API_BASE_URL}/admin/doctors/${doc.doctorId}/verify`, {
+                                                                    const response = await authFetch(`${API_BASE_URL}/admin/doctors/${doc.doctorId}/verify`, {
                                                                         method: 'PUT',
                                                                         headers: { 'Content-Type': 'application/json' }
                                                                     });
@@ -4702,7 +4755,7 @@
                                                             <button 
                                                                 onClick={async () => {
                                                                     try {
-                                                                        const response = await fetch(`${API_BASE_URL}/admin/issues/${issue.id}/status`, {
+                                                                        const response = await authFetch(`${API_BASE_URL}/admin/issues/${issue.id}/status`, {
                                                                             method: 'PUT',
                                                                             headers: { 'Content-Type': 'application/json' },
                                                                             body: JSON.stringify({ status: 'in-progress' })
@@ -5525,7 +5578,7 @@
                                                 return;
                                             }
                                             try {
-                                                const response = await fetch(`${API_BASE_URL}/admin/invite-doctor`, {
+                                                const response = await authFetch(`${API_BASE_URL}/admin/invite-doctor`, {
                                                     method: 'POST',
                                                     headers: { 'Content-Type': 'application/json' },
                                                     body: JSON.stringify({
@@ -5736,7 +5789,7 @@
                                             try {
                                                 // Combine date and time into ISO format
                                                 const appointmentDateTime = `${rescheduleDate}T${rescheduleTime}:00`;
-                                                const response = await fetch(`${API_BASE_URL}/appointments/${selectedAppointmentForReschedule.id}`, {
+                                                const response = await authFetch(`${API_BASE_URL}/appointments/${selectedAppointmentForReschedule.id}`, {
                                                     method: 'PUT',
                                                     headers: { 'Content-Type': 'application/json' },
                                                     body: JSON.stringify({
@@ -5851,13 +5904,19 @@
         // Restore session on page load
         useEffect(() => {
             const storedUser = sessionStorage.getItem('adminUser');
-            if (storedUser) {
+            const storedToken = sessionStorage.getItem('adminAuthToken');
+
+            if (storedUser && storedToken) {
                 try {
                     setUser(JSON.parse(storedUser));
                 } catch (error) {
                     console.error('Failed to parse stored user:', error);
                     sessionStorage.removeItem('adminUser');
+                    sessionStorage.removeItem('adminAuthToken');
                 }
+            } else {
+                sessionStorage.removeItem('adminUser');
+                sessionStorage.removeItem('adminAuthToken');
             }
             setLoadingUser(false);
         }, []);
@@ -5884,6 +5943,8 @@
         const handleLogout = () => {
             setUser(null);
             sessionStorage.removeItem('adminUser');
+            sessionStorage.removeItem('adminAuthToken');
+            localStorage.removeItem('adminEmail');
         };
         
         if (loadingUser) {

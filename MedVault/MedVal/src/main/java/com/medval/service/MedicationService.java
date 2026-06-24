@@ -1,33 +1,33 @@
 package com.medval.service;
 
-import java.util.List;
-import java.util.stream.Collectors;
-
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
-
 import com.medval.dto.MedicationDto;
 import com.medval.model.Medication;
 import com.medval.model.Patient;
 import com.medval.repository.MedicationRepository;
 import com.medval.repository.PatientRepository;
-import com.medval.repository.UserRepository;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
 
 @Service
 public class MedicationService {
 
-    @Autowired
-    private MedicationRepository medicationRepository;
+    private final MedicationRepository medicationRepository;
+    private final PatientRepository patientRepository;
 
-    @Autowired
-    private PatientRepository patientRepository;
+    public MedicationService(
+            MedicationRepository medicationRepository,
+            PatientRepository patientRepository) {
+        this.medicationRepository = medicationRepository;
+        this.patientRepository = patientRepository;
+    }
 
-    @Autowired
-    private UserRepository userRepository;
-
+    @Transactional
     public MedicationDto save(MedicationDto dto) {
         Patient patient = patientRepository.findById(dto.getPatientId())
-                .orElseThrow(() -> new RuntimeException("Patient not found with ID: " + dto.getPatientId()));
+                .orElseThrow(() -> new RuntimeException("Patient not found."));
 
         Medication medication = new Medication();
         medication.setPatient(patient);
@@ -44,35 +44,41 @@ public class MedicationService {
         return convertToDto(saved);
     }
 
+    @Transactional(readOnly = true)
     public List<MedicationDto> getByPatientId(String patientId) {
-        // Query directly by patientId to match frontend and DTO usage
         return medicationRepository.findByPatient_PatientId(patientId)
                 .stream()
                 .map(this::convertToDto)
-                .collect(Collectors.toList());
+                .toList();
     }
 
+    @Transactional(readOnly = true)
     public List<MedicationDto> getByDoctorId(String doctorId) {
-        // Query by prescribedBy field which stores the doctor's ID
         return medicationRepository.findByPrescribedBy(doctorId)
                 .stream()
                 .map(this::convertToDto)
-                .collect(Collectors.toList());
+                .toList();
     }
 
-    private MedicationDto convertToDto(Medication m) {
+    private MedicationDto convertToDto(Medication medication) {
         MedicationDto dto = new MedicationDto();
-        dto.setMedicationId(m.getMedicationId());
-        dto.setPatientId(m.getPatient().getPatientId());
-        dto.setMedicationName(m.getMedicationName());
-        dto.setDosage(m.getDosage());
-        dto.setFrequency(m.getFrequency());
-        dto.setStartDate(m.getStartDate());
-        dto.setEndDate(m.getEndDate());
-        dto.setPrescribedBy(m.getPrescribedBy());
-        dto.setDocumentPath(m.getDocumentPath());
-        dto.setNotes(m.getNotes());
-        dto.setIsActive(m.getIsActive());
+
+        dto.setMedicationId(medication.getMedicationId());
+
+        if (medication.getPatient() != null) {
+            dto.setPatientId(medication.getPatient().getPatientId());
+        }
+
+        dto.setMedicationName(medication.getMedicationName());
+        dto.setDosage(medication.getDosage());
+        dto.setFrequency(medication.getFrequency());
+        dto.setStartDate(medication.getStartDate());
+        dto.setEndDate(medication.getEndDate());
+        dto.setPrescribedBy(medication.getPrescribedBy());
+        dto.setDocumentPath(medication.getDocumentPath());
+        dto.setNotes(medication.getNotes());
+        dto.setIsActive(medication.getIsActive());
+
         return dto;
     }
 }

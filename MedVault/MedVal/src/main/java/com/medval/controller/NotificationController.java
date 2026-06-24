@@ -1,63 +1,47 @@
 package com.medval.controller;
 
-import java.util.List;
-
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
-
+import com.medval.model.Notification;
 import com.medval.service.NotificationService;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/notifications")
-// --- THE FIX: REMOVE @CrossOrigin(origins = "*") ---
-// The SecurityConfig now handles CORS globally.
 public class NotificationController {
 
-    @Autowired
-    private NotificationService notificationService;
+    private final NotificationService notificationService;
 
-    @GetMapping("/user/{userId}")
-    public ResponseEntity<?> getUserNotifications(@PathVariable String userId) {
-        try {
-            List<com.medval.model.Notification> notifications = notificationService.getNotificationsByUserId(userId);
-            return ResponseEntity.ok(notifications);
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
-        }
+    public NotificationController(NotificationService notificationService) {
+        this.notificationService = notificationService;
     }
 
-    @GetMapping("/user/{userId}/unread-count")
-    public ResponseEntity<?> getUnreadCount(@PathVariable String userId) {
-        try {
-            Long count = notificationService.getUnreadCount(userId);
-            return ResponseEntity.ok(count);
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
-        }
+    @GetMapping("/{userId}")
+    public ResponseEntity<List<Notification>> getNotifications(@PathVariable String userId) {
+        return ResponseEntity.ok(notificationService.getNotificationsByUserId(userId));
+    }
+
+    @GetMapping("/{userId}/unread")
+    public ResponseEntity<List<Notification>> getUnreadNotifications(@PathVariable String userId) {
+        return ResponseEntity.ok(notificationService.getUnreadNotificationsByUserId(userId));
     }
 
     @PutMapping("/{notificationId}/read")
     public ResponseEntity<?> markAsRead(@PathVariable String notificationId) {
-        try {
-            notificationService.markNotificationAsRead(notificationId);
-            return ResponseEntity.ok("Notification marked as read");
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
-        }
+        notificationService.markNotificationAsRead(notificationId);
+        return ResponseEntity.ok(Map.of("message", "Notification marked as read."));
     }
 
     @PutMapping("/user/{userId}/read-all")
     public ResponseEntity<?> markAllAsRead(@PathVariable String userId) {
-        try {
-            notificationService.markAllNotificationsAsRead(userId);
-            return ResponseEntity.ok("All notifications marked as read");
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
-        }
+        notificationService.markAllNotificationsAsRead(userId);
+        return ResponseEntity.ok(Map.of("message", "All notifications marked as read."));
+    }
+
+    @GetMapping("/{userId}/count")
+    public ResponseEntity<?> getUnreadCount(@PathVariable String userId) {
+        return ResponseEntity.ok(Map.of("count", notificationService.getUnreadCount(userId)));
     }
 }
