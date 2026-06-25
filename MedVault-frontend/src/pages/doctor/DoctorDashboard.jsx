@@ -2,33 +2,12 @@ import React, { useEffect, useState } from "react";
 import Sidebar from "../../components/Sidebar.jsx";
 import SearchableDoctorDropdown from "../../components/SearchableDoctorDropdown.jsx";
 import DoctorAddPrescriptionModal from "../../components/modals/DoctorAddPrescriptionModal.jsx";
+import authFetch from "../../services/authFetch.js";
+import { getISTGreeting } from "../../utils/date.js";
+import LoadingSpinner from "../../components/common/LoadingSpinner.jsx";
+import EmptyState from "../../components/common/EmptyState.jsx";
+import ErrorState from "../../components/common/ErrorState.jsx";
 
-const getISTGreeting = () => {
-  const date = new Date();
-  const istString = date.toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
-  const istDate = new Date(istString);
-  const hour = istDate.getHours();
-
-  if (hour >= 0 && hour < 12) return "Good Morning";
-  if (hour >= 12 && hour < 17) return "Good Afternoon";
-  return "Good Evening";
-};
-
-const getAuthToken = () => sessionStorage.getItem("authToken");
-
-const authFetch = (url, options = {}) => {
-  const token = getAuthToken();
-  const headers = { ...(options.headers || {}) };
-
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
-  }
-
-  return fetch(url, {
-    ...options,
-    headers,
-  });
-};
 
 const ViewRecordModal = ({ record, patientProfile, onClose }) => {
   // --- HELPER 1: Gets data *ONLY* from the RECORD ---
@@ -619,19 +598,9 @@ const DoctorViewRecordsModal = ({
           </button>
         </div>
 
-        {loading && (
-          <div className="flex justify-center items-center p-8">
-            <span className="text-brand-purple text-lg">
-              Loading patient records...
-            </span>
-          </div>
-        )}
+        {loading && <LoadingSpinner message="Loading patient records..." />}
 
-        {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-            Error loading records: {error}
-          </div>
-        )}
+        {error && <ErrorState message={`Error loading records: ${error}`} className="mb-4" />}
 
         {!loading && !error && (
           <div className="flex-grow overflow-y-auto pr-2 space-y-6">
@@ -942,13 +911,14 @@ const PrescriptionsSidebar = ({ user, onViewRecord }) => {
 
       <div className="p-4 space-y-4 overflow-y-auto">
         {loading ? (
-          <div className="flex justify-center items-center p-4">
-            <span className="text-brand-purple">Loading prescriptions...</span>
-          </div>
+          <LoadingSpinner message="Loading prescriptions..." className="p-4" />
         ) : prescriptions.length === 0 ? (
-          <p className="text-slate-500 p-2 text-sm text-center bg-slate-50 rounded-lg">
-            No prescriptions from your doctors yet.
-          </p>
+          <EmptyState
+            icon="fas fa-prescription-bottle-medical"
+            title="No prescriptions yet"
+            description="Prescriptions from your doctors will appear here."
+            className="p-4"
+          />
         ) : (
           <div className="grid grid-cols-1 gap-4">
             {prescriptions.map((r) => (

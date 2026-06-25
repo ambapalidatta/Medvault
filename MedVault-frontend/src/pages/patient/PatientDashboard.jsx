@@ -1,282 +1,22 @@
 import React, { useEffect, useState } from "react";
 import Sidebar from "../../components/Sidebar.jsx";
+import PatientHeader from "../../components/patient/PatientHeader.jsx";
+import PatientDashboardOverview from "../../components/patient/PatientDashboardOverview.jsx";
 import SearchableDoctorDropdown from "../../components/SearchableDoctorDropdown.jsx";
 import FeedbackModal from "../../components/modals/FeedbackModal.jsx";
 import AddConditionModal from "../../components/modals/AddConditionModal.jsx";
 import AddRecordModal from "../../components/modals/AddRecordModal.jsx";
 import ViewRecordModal from "../../components/modals/ViewRecordModal.jsx";
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://medvault-backend-ni3i.onrender.com/api";
-
-const getAuthToken = () => sessionStorage.getItem("authToken");
-
-const authFetch = (url, options = {}) => {
-  const token = getAuthToken();
-  const headers = { ...(options.headers || {}) };
-
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
-  }
-
-  const finalUrl = url.startsWith("http") ? url : `${API_BASE_URL}${url.startsWith("/") ? url : `/${url}`}`;
-
-  return fetch(finalUrl, {
-    ...options,
-    headers,
-  });
-};
-
-const getISTGreeting = () => {
-  const date = new Date();
-  const istString = date.toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
-  const istDate = new Date(istString);
-  const hour = istDate.getHours();
-
-  if (hour >= 0 && hour < 12) return "Good Morning";
-  if (hour >= 12 && hour < 17) return "Good Afternoon";
-  return "Good Evening";
-};
-
-// --- ViewRecordModal  ---
+import DummyPaymentModal from "../../components/modals/DummyPaymentModal.jsx";
+import ReportIssueModal from "../../components/modals/ReportIssueModal.jsx";
+import authFetch from "../../services/authFetch.js";
+import { getISTGreeting } from "../../utils/date.js";
+import LoadingSpinner from "../../components/common/LoadingSpinner.jsx";
+import EmptyState from "../../components/common/EmptyState.jsx";
+import ErrorState from "../../components/common/ErrorState.jsx";
+import PatientProfileSection from "../../components/patient/PatientProfileSection.jsx";
 
 
-
-// --- MODIFIED DUMMY PAYMENT MODAL ---
-// --- MODIFIED DUMMY PAYMENT MODAL ---
-
-const DummyPaymentModal = ({ fee, onClose, onConfirmPayment, loading }) => {
-  const [step, setStep] = useState(1); // 1: Select Method, 2: OTP
-  const [method, setMethod] = useState("card");
-  const [otp, setOtp] = useState("");
-  const [paymentMessage, setPaymentMessage] = useState("");
-  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
-
-  // This is the function passed from PatientDashboard (which includes the reset)
-  const handleCloseClick = () => {
-    if (!loading) setShowCancelConfirm(true);
-  };
-
-  const confirmCancel = () => {
-    setShowCancelConfirm(false);
-    onClose(); // <-- This now calls resetAppointmentForms()
-  };
-
-  const handlePayClick = () => {
-    setPaymentMessage("");
-    setStep(2); // Go to OTP step
-  };
-
-  const handleOtpConfirm = () => {
-    if (otp.length !== 4) {
-      setPaymentMessage("Please enter OTP.");
-      return;
-    }
-    setPaymentMessage("Verifying OTP...");
-    setTimeout(() => {
-      onConfirmPayment();
-    }, 1000);
-  };
-
-  const renderPaymentForm = () => {
-    if (method === "card") {
-      return (
-        <div className="space-y-4">
-          <input
-            type="text"
-            placeholder="Card Number (XXXX XXXX XXXX XXXX)"
-            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-purple"
-            maxLength="16"
-          />
-          <div className="flex gap-4">
-            <input
-              type="text"
-              placeholder="MM/YY"
-              className="w-1/2 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-purple"
-              maxLength="5"
-            />
-            <input
-              type="text"
-              placeholder="CVV"
-              className="w-1/2 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-purple"
-              maxLength="3"
-            />
-          </div>
-          <input
-            type="text"
-            placeholder="Name on Card"
-            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-purple"
-          />
-        </div>
-      );
-    } else if (method === "upi") {
-      return (
-        <div className="space-y-4">
-          <input
-            type="text"
-            placeholder="UPI ID (e.g., name@bank)"
-            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-purple"
-          />
-          <p className="text-sm text-slate-500">
-            A payment request will be sent to your UPI app.
-          </p>
-        </div>
-      );
-    } else if (method === "wallet") {
-      return (
-        <div className="space-y-4">
-          <select className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-purple">
-            <option>Select Wallet</option>
-            <option>Paytm</option>
-            <option>Google Pay</option>
-            <option>PhonePe</option>
-          </select>
-          <input
-            type="text"
-            placeholder="Mobile Number"
-            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-purple"
-            maxLength="10"
-          />
-        </div>
-      );
-    }
-  };
-
-  return (
-    <div className="modal-overlay" onClick={handleCloseClick}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold text-slate-800">
-            Complete Your Payment
-          </h2>
-          <button
-            onClick={handleCloseClick}
-            className="text-slate-500 hover:text-slate-800 text-2xl"
-            disabled={loading}
-          >
-            &times;
-          </button>
-        </div>
-        <div className="text-center mb-4">
-          <img
-            src="https://razorpay.com/assets/razorpay-logo.svg"
-            alt="Razorpay"
-            className="h-12 mx-auto mb-4"
-          />
-          <p className="text-lg text-slate-600">Total Amount:</p>
-          <p className="text-4xl font-bold text-brand-purple">₹{fee}</p>
-        </div>
-
-        {step === 1 && (
-          <>
-            <div className="flex justify-center mb-6 border-b">
-              {["card", "upi", "wallet"].map((m) => (
-                <button
-                  key={m}
-                  className={`px-4 py-2 font-semibold capitalize ${
-                    method === m
-                      ? "border-b-4 border-brand-purple text-brand-purple"
-                      : "text-slate-500 hover:text-slate-800"
-                  }`}
-                  onClick={() => setMethod(m)}
-                >
-                  {m}
-                </button>
-              ))}
-            </div>
-
-            <div className="mb-6 p-4 border rounded-lg bg-slate-50">
-              {renderPaymentForm()}
-            </div>
-
-            <button
-              onClick={handlePayClick}
-              disabled={loading}
-              className={`w-full text-white font-bold py-3 px-4 rounded-lg transition-colors duration-300 ${
-                loading
-                  ? "bg-gray-400 cursor-not-allowed"
-                  : "bg-brand-purple hover:bg-purple-700"
-              }`}
-            >
-              {loading ? "Processing Payment..." : `Pay ₹${fee}`}
-            </button>
-          </>
-        )}
-
-        {step === 2 && (
-          <div className="text-center">
-            <p className="text-slate-600 mb-4">
-              Enter the 4-digit OTP sent to your number/email to confirm
-              payment.
-            </p>
-            <div className="flex justify-center space-x-2 mb-6">
-              <input
-                type="text"
-                value={otp}
-                onChange={(e) =>
-                  setOtp(e.target.value.replace(/[^0-9]/g, "").slice(0, 4))
-                }
-                placeholder="••••"
-                maxLength="4"
-                className="text-3xl font-bold text-center w-32 p-3 border-2 border-brand-purple rounded-lg focus:outline-none focus:border-purple-700"
-              />
-            </div>
-            {paymentMessage && (
-              <p className="text-red-600 text-sm mb-4">{paymentMessage}</p>
-            )}
-            <button
-              onClick={handleOtpConfirm}
-              disabled={loading}
-              className={`w-full text-white font-bold py-3 px-4 rounded-lg transition-colors duration-300 ${
-                loading
-                  ? "bg-gray-400 cursor-not-allowed"
-                  : "bg-green-600 hover:bg-green-700"
-              }`}
-            >
-              {loading ? "Verifying..." : "Confirm OTP & Pay"}
-            </button>
-            <button
-              onClick={() => setStep(1)}
-              disabled={loading}
-              className="w-full text-slate-500 font-semibold py-2 mt-2"
-            >
-              Go Back
-            </button>
-          </div>
-        )}
-      </div>
-      {showCancelConfirm && (
-        <div
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="bg-white p-6 rounded-lg shadow-xl max-w-sm">
-            <h3 className="text-xl font-bold text-slate-800 mb-4">
-              Cancel Payment?
-            </h3>
-            <p className="text-slate-600 mb-6">
-              Are you sure you want to cancel this payment?
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={confirmCancel}
-                className="flex-1 bg-red-600 text-white py-2 rounded-lg font-semibold hover:bg-red-700"
-              >
-                Yes, Cancel
-              </button>
-              <button
-                onClick={() => setShowCancelConfirm(false)}
-                className="flex-1 bg-gray-300 text-slate-800 py-2 rounded-lg font-semibold hover:bg-gray-400"
-              >
-                No, Continue
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-// --- FINAL PATIENT DASHBOARD (Feedback Box Fixed, Urgency Icons Updated) ---
 
 const PatientDashboard = ({ user, onLogout }) => {
   // --- STATE ---
@@ -969,74 +709,12 @@ const PatientDashboard = ({ user, onLogout }) => {
       <div
         className={`flex-1 flex flex-col transition-all duration-300 ${isSidebarOpen ? "ml-72" : "ml-20"}`}
       >
-        {/* HEADER */}
-        <header className="bg-gradient-to-r from-purple-600 to-green-500 shadow-lg sticky top-0 z-30 px-8 py-4 h-20 flex justify-between items-center">
-          <div className="flex items-center gap-4">
-            <h1
-              className="text-2xl font-extrabold text-white flex items-center cursor-pointer"
-              onClick={() => window.location.reload()}
-            >
-              <i className="fas fa-shield-heart text-3xl mr-2"></i> MedVault
-            </h1>
-          </div>
-
-          <div className="flex items-center gap-6">
-            <button
-              onClick={() => {
-                sessionStorage.removeItem("loggedInUser");
-                sessionStorage.removeItem("authToken");
-                window.location.href = "http://localhost:5173/";
-              }}
-              className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-full font-bold flex items-center transition-all"
-            >
-              <i className="fas fa-home mr-2"></i> Home
-            </button>
-            <button
-              onClick={() => {
-                window.location.hash = "#support";
-              }}
-              className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-full font-bold flex items-center transition-all"
-            >
-              <i className="fas fa-exclamation-circle mr-2"></i> Report Issue
-            </button>
-            <div className="relative">
-              <button
-                onClick={handleBellClick}
-                className="text-white hover:text-yellow-200 relative transition-colors transform hover:scale-110"
-              >
-                <i className="fas fa-bell text-2xl"></i>
-                {unreadCount > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
-                    {unreadCount}
-                  </span>
-                )}
-              </button>
-              {showNotifications && (
-                <div className="absolute right-0 mt-4 w-80 bg-white rounded-xl shadow-2xl z-50 max-h-96 overflow-y-auto border border-slate-100">
-                  <div className="p-4 border-b bg-purple-50">
-                    <h3 className="font-bold text-brand-purple">
-                      Notifications
-                    </h3>
-                  </div>
-                  {notifications.length === 0 ? (
-                    <p className="p-4 text-slate-500 text-center">
-                      No notifications
-                    </p>
-                  ) : (
-                    notifications.map((n) => (
-                      <div
-                        key={n.notificationId}
-                        className="p-4 border-b hover:bg-slate-50"
-                      >
-                        <p className="text-sm text-slate-800">{n.message}</p>
-                      </div>
-                    ))
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        </header>
+        <PatientHeader
+          unreadCount={unreadCount}
+          notifications={notifications}
+          showNotifications={showNotifications}
+          onBellClick={handleBellClick}
+        />
 
         <main className="p-8 pb-20 max-w-7xl w-full mx-auto">
           {/* BANNER */}
@@ -1061,306 +739,26 @@ const PatientDashboard = ({ user, onLogout }) => {
 
           {/* DASHBOARD STATS */}
           {activeSection === "dashboard" && (
-            <div className="animate-fade-in">
-              {pendingConsentRequests.length > 0 && (
-                <div className="mb-8 bg-yellow-50 border-l-4 border-yellow-400 p-6 rounded-r-xl shadow-sm">
-                  <h4 className="text-lg font-bold text-yellow-800 mb-4 flex items-center">
-                    <i className="fas fa-key mr-2"></i> Pending Access Requests
-                  </h4>
-                  <div className="space-y-3">
-                    {pendingConsentRequests.map((req) => (
-                      <div
-                        key={req.id}
-                        className="bg-white p-4 rounded-lg shadow flex justify-between items-center"
-                      >
-                        <div>
-                          <p className="font-bold text-slate-800">
-                            Dr. {req.doctorName}
-                          </p>
-                          <p className="text-sm text-slate-600">
-                            Requests access to your records.
-                          </p>
-                        </div>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() =>
-                              handleConsentResponse(req.id, "APPROVED")
-                            }
-                            className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 text-sm font-bold"
-                          >
-                            Approve
-                          </button>
-                          <button
-                            onClick={() =>
-                              handleConsentResponse(req.id, "REJECTED")
-                            }
-                            className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 text-sm font-bold"
-                          >
-                            Deny
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                <div className="bg-white p-6 rounded-2xl shadow-md border-l-4 border-purple-500 flex items-center gap-4 hover:shadow-lg transition-all">
-                  <div className="w-14 h-14 bg-purple-100 rounded-full flex items-center justify-center text-purple-600">
-                    <i className="fas fa-calendar-check text-2xl"></i>
-                  </div>
-                  <div>
-                    <p className="text-3xl font-bold text-slate-800">
-                      {nextAppointments.length}
-                    </p>
-                    <p className="text-slate-500 font-bold text-xs uppercase">
-                      Upcoming Appointments
-                    </p>
-                  </div>
-                </div>
-                <div className="bg-white p-6 rounded-2xl shadow-md border-l-4 border-green-500 flex items-center gap-4 hover:shadow-lg transition-all">
-                  <div className="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center text-green-600">
-                    <i className="fas fa-clipboard-check text-2xl"></i>
-                  </div>
-                  <div>
-                    <p className="text-3xl font-bold text-slate-800">
-                      {completed.length}
-                    </p>
-                    <p className="text-slate-500 font-bold text-xs uppercase">
-                      Completed Appointments
-                    </p>
-                  </div>
-                </div>
-                <div className="bg-white p-6 rounded-2xl shadow-md border-l-4 border-blue-500 flex items-center gap-4 hover:shadow-lg transition-all">
-                  <div className="w-14 h-14 bg-blue-100 rounded-full flex items-center justify-center text-blue-600">
-                    <i className="fas fa-prescription-bottle-alt text-2xl"></i>
-                  </div>
-                  {/* --- UPDATE THIS LINE --- */}
-                  <div>
-                    <p className="text-3xl font-bold text-slate-800">
-                      {activePrescriptions.length}
-                    </p>
-                    <p className="text-slate-500 font-bold text-xs uppercase">
-                      Active Prescriptions
-                    </p>
-                  </div>
-                </div>
-                <div className="bg-white p-6 rounded-2xl shadow-md border-l-4 border-teal-500 flex items-center gap-4 hover:shadow-lg transition-all">
-                  <div className="w-14 h-14 bg-teal-100 rounded-full flex items-center justify-center text-teal-600">
-                    <i className="fas fa-notes-medical text-2xl"></i>
-                  </div>
-                  <div>
-                    <p className="text-3xl font-bold text-slate-800">
-                      {medicalConditions.length}
-                    </p>
-                    <p className="text-slate-500 font-bold text-xs uppercase">
-                      Medical Conditions
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Next Appointments - Show ALL upcoming appointments */}
-              <div className="bg-white rounded-2xl shadow-lg p-6">
-                <h4 className="text-xl font-bold text-slate-800 mb-4 flex items-center">
-                  <i className="fas fa-calendar-alt mr-2 text-purple-600"></i>{" "}
-                  Next Appointments ({nextAppointments.length})
-                </h4>
-                {nextAppointments.length === 0 ? (
-                  <p className="text-slate-500 text-center py-8">
-                    No upcoming appointments.
-                  </p>
-                ) : (
-                  <div className="space-y-3 max-h-96 overflow-y-auto">
-                    {nextAppointments.map((a) => {
-                      const isEmergency = a.requestDateTime !== undefined;
-                      const dateTime = isEmergency
-                        ? a.requestDateTime
-                        : a.appointmentDateTime;
-                      const doctorName = isEmergency
-                        ? doctors.find(
-                            (d) => (d.professionalId || d.id) === a.doctorId,
-                          )
-                          ? `Dr. ${doctors.find((d) => (d.professionalId || d.id) === a.doctorId).firstName} ${doctors.find((d) => (d.professionalId || d.id) === a.doctorId).lastName}`
-                          : "Dr. N/A"
-                        : `Dr. ${a.doctor?.firstName} ${a.doctor?.lastName}`;
-                      const reason = isEmergency
-                        ? a.conditionDescription
-                        : a.reason;
-                      const doctorInitial = isEmergency
-                        ? doctors
-                            .find(
-                              (d) => (d.professionalId || d.id) === a.doctorId,
-                            )
-                            ?.firstName?.charAt(0) || "D"
-                        : a.doctor?.firstName?.charAt(0) || "D";
-
-                      return (
-                        <div
-                          key={a.appointmentId || a.requestId}
-                          className={`flex justify-between items-center p-4 rounded-xl border ${isEmergency ? "bg-red-50 border-red-300 shadow-lg animate-pulse-slow" : "bg-green-50 border-green-100"}`}
-                        >
-                          <div className="flex items-center gap-4">
-                            <div
-                              className={`w-12 h-12 ${isEmergency ? "bg-red-600" : "bg-brand-purple"} text-white rounded-full flex items-center justify-center font-bold text-xl`}
-                            >
-                              {isEmergency ? "🚨" : doctorInitial}
-                            </div>
-                            <div>
-                              <p className="font-bold text-slate-800 text-lg flex items-center gap-2">
-                                {doctorName}
-                                {isEmergency && (
-                                  <span className="text-xs bg-red-600 text-white px-2 py-1 rounded-full font-bold">
-                                    EMERGENCY
-                                  </span>
-                                )}
-                              </p>
-                              <div className="flex items-center gap-3">
-                                <p className="text-sm text-slate-600 font-medium">
-                                  {new Date(dateTime).toLocaleString()}
-                                </p>
-                                {reason && (
-                                  <span className="text-sm text-slate-500 border-l border-slate-300 pl-3">
-                                    {reason}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                          <span
-                            className={`px-3 py-1 ${isEmergency ? "bg-red-200 text-red-800" : "bg-green-200 text-green-800"} rounded-full text-xs font-bold`}
-                          >
-                            {isEmergency ? "EMERGENCY" : "APPROVED"}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </div>
+            <PatientDashboardOverview
+              pendingConsentRequests={pendingConsentRequests}
+              onConsentResponse={handleConsentResponse}
+              nextAppointments={nextAppointments}
+              completed={completed}
+              activePrescriptions={activePrescriptions}
+              medicalConditions={medicalConditions}
+              doctors={doctors}
+            />
           )}
 
           {/* PROFILE */}
           {activeSection === "profile" && (
-            <section className="bg-white rounded-2xl shadow-lg p-8 animate-fade-in">
-              <div className="flex justify-between items-center mb-8 border-b pb-4">
-                <div className="flex items-center gap-3">
-                  <i className="fas fa-user-circle text-4xl text-slate-800"></i>
-                  <h3 className="text-3xl font-bold text-slate-800">
-                    My Profile
-                  </h3>
-                </div>
-                {!isEditingProfile ? (
-                  <button
-                    onClick={() => setIsEditingProfile(true)}
-                    className="bg-purple-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-purple-700 transition-all"
-                  >
-                    <i className="fas fa-edit mr-2"></i>Edit Profile
-                  </button>
-                ) : (
-                  <div className="flex gap-3">
-                    <button
-                      onClick={handleProfileUpdate}
-                      className="bg-green-600 text-white px-6 py-2 rounded-lg font-bold"
-                    >
-                      Save
-                    </button>
-                    <button
-                      onClick={() => setIsEditingProfile(false)}
-                      className="bg-slate-500 text-white px-6 py-2 rounded-lg font-bold"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                )}
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {["firstName", "lastName"].map((field) => (
-                  <div key={field}>
-                    <label className="block text-sm font-bold text-slate-800 mb-2 capitalize">
-                      {field.replace(/([A-Z])/g, " $1").trim()}
-                    </label>
-                    <input
-                      type="text"
-                      value={profileData[field] || ""}
-                      disabled={!isEditingProfile}
-                      onChange={(e) =>
-                        setProfileData({
-                          ...profileData,
-                          [field]: e.target.value,
-                        })
-                      }
-                      className="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-purple-500 bg-slate-50 disabled:bg-slate-100 disabled:text-slate-600"
-                    />
-                  </div>
-                ))}
-                {/* Email field - fetched from User object */}
-                <div>
-                  <label className="block text-sm font-bold text-slate-800 mb-2 capitalize">
-                    Email
-                  </label>
-                  <input
-                    type="email"
-                    value={profileData.email || ""}
-                    disabled={true} // Email should not be editable from here
-                    className="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-purple-500 bg-slate-100 text-slate-600"
-                  />
-                </div>
-                {/* Gender field */}
-                <div>
-                  <label className="block text-sm font-bold text-slate-800 mb-2">
-                    Gender
-                  </label>
-                  <select
-                    value={profileData.gender?.toLowerCase() || ""}
-                    disabled={!isEditingProfile}
-                    onChange={(e) =>
-                      setProfileData({ ...profileData, gender: e.target.value })
-                    }
-                    className="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-purple-500 bg-slate-50 disabled:bg-slate-100 appearance-none"
-                  >
-                    <option value="">Select Gender</option>
-                    <option value="male">Male</option>
-                    <option value="female">Female</option>
-                    <option value="other">Other</option>
-                  </select>
-                </div>
-                {[
-                  "phone",
-                  "dateOfBirth",
-                  "bloodGroup",
-                  "address",
-                  "city",
-                  "state",
-                  "country",
-                  "postalCode",
-                  "emergencyContactName",
-                  "emergencyContactPhone",
-                ].map((field) => (
-                  <div
-                    key={field}
-                    className={field === "address" ? "md:col-span-2" : ""}
-                  >
-                    <label className="block text-sm font-bold text-slate-800 mb-2 capitalize">
-                      {field.replace(/([A-Z])/g, " $1").trim()}
-                    </label>
-                    <input
-                      type={field.includes("date") ? "date" : "text"}
-                      value={profileData[field] || ""}
-                      disabled={!isEditingProfile}
-                      onChange={(e) =>
-                        setProfileData({
-                          ...profileData,
-                          [field]: e.target.value,
-                        })
-                      }
-                      className="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-purple-500 bg-slate-50 disabled:bg-slate-100 disabled:text-slate-600"
-                    />
-                  </div>
-                ))}
-              </div>
-            </section>
+            <PatientProfileSection
+              profileData={profileData}
+              setProfileData={setProfileData}
+              isEditingProfile={isEditingProfile}
+              setIsEditingProfile={setIsEditingProfile}
+              onSave={handleProfileUpdate}
+            />
           )}
 
           {/* BOOK APPOINTMENT (Fee logic fixed) */}
@@ -1640,15 +1038,11 @@ const PatientDashboard = ({ user, onLogout }) => {
                   )}
                   {activeTab === "all" &&
                     [...appointments, ...emergencyRequests].length === 0 && (
-                      <div className="text-center py-12 bg-white rounded-xl border border-slate-200">
-                        <i className="fas fa-calendar-alt text-4xl text-slate-300 mb-4"></i>
-                        <p className="text-slate-500 font-medium">
-                          No appointments found
-                        </p>
-                        <p className="text-slate-400 text-sm mt-1">
-                          Book an appointment to get started
-                        </p>
-                      </div>
+                      <EmptyState
+                        icon="fas fa-calendar-alt"
+                        title="No appointments found"
+                        description="Book an appointment to get started."
+                      />
                     )}
                   {(activeTab === "upcoming"
                     ? upcoming
@@ -2000,9 +1394,11 @@ const PatientDashboard = ({ user, onLogout }) => {
                   Active Prescriptions ({activePrescriptions.length})
                 </h3>
                 {activePrescriptions.length === 0 ? (
-                  <p className="text-slate-500 text-center py-4">
-                    No active prescriptions found.
-                  </p>
+                  <EmptyState
+                    icon="fas fa-prescription-bottle-alt"
+                    title="No active prescriptions found"
+                    description="Active prescriptions from your doctors will appear here."
+                  />
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {activePrescriptions.map((p) => {
@@ -2762,125 +2158,15 @@ const PatientDashboard = ({ user, onLogout }) => {
 
       {/* REPORT ISSUE MODAL */}
       {showReportIssueModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-8 animate-fade-in">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-2xl font-bold text-slate-800">
-                <i className="fas fa-flag text-orange-500 mr-2"></i> Report an
-                Issue
-              </h3>
-              <button
-                onClick={() => setShowReportIssueModal(false)}
-                className="text-slate-400 hover:text-slate-600 text-2xl"
-              >
-                &times;
-              </button>
-            </div>
-            <div className="space-y-4">
-              <input
-                type="text"
-                placeholder="Your Name"
-                value={
-                  issueForm.name || user?.firstName + " " + user?.lastName || ""
-                }
-                onChange={(e) =>
-                  setIssueForm({ ...issueForm, name: e.target.value })
-                }
-                className="w-full p-3 border border-slate-200 rounded-lg"
-              />
-              <input
-                type="email"
-                placeholder="Your Email"
-                value={issueForm.email || user?.email || ""}
-                onChange={(e) =>
-                  setIssueForm({ ...issueForm, email: e.target.value })
-                }
-                className="w-full p-3 border border-slate-200 rounded-lg"
-              />
-              <input
-                type="tel"
-                placeholder="Phone Number (optional)"
-                value={issueForm.phoneNumber}
-                onChange={(e) =>
-                  setIssueForm({ ...issueForm, phoneNumber: e.target.value })
-                }
-                className="w-full p-3 border border-slate-200 rounded-lg"
-              />
-              <input
-                type="text"
-                placeholder="Subject"
-                value={issueForm.subject}
-                onChange={(e) =>
-                  setIssueForm({ ...issueForm, subject: e.target.value })
-                }
-                className="w-full p-3 border border-slate-200 rounded-lg"
-              />
-              <textarea
-                placeholder="Describe your issue in detail..."
-                value={issueForm.message}
-                onChange={(e) =>
-                  setIssueForm({ ...issueForm, message: e.target.value })
-                }
-                className="w-full p-3 border border-slate-200 rounded-lg h-32 resize-none"
-              ></textarea>
-            </div>
-            <div className="flex gap-3 mt-6">
-              <button
-                onClick={() => setShowReportIssueModal(false)}
-                className="flex-1 py-3 border border-slate-300 rounded-lg font-bold text-slate-600 hover:bg-slate-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  const payload = {
-                    name:
-                      issueForm.name || user?.firstName + " " + user?.lastName,
-                    email: issueForm.email || user?.email,
-                    phoneNumber: issueForm.phoneNumber,
-                    subject: issueForm.subject,
-                    message: issueForm.message,
-                    userType: "PATIENT",
-                    userId: user?.userId,
-                  };
-                  authFetch(
-                    "https://medvault-backend-ni3i.onrender.com/api/issues",
-                    {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify(payload),
-                    },
-                  )
-                    .then((r) => {
-                      if (r.ok) {
-                        setShowReportIssueModal(false);
-                        setIssueForm({
-                          name: "",
-                          email: "",
-                          phoneNumber: "",
-                          subject: "",
-                          message: "",
-                        });
-                        fetchUserIssues();
-                        setSuccessMessage("Issue reported successfully!");
-                        setTimeout(() => setSuccessMessage(""), 3000);
-                      } else {
-                        setErrorMessage("Failed to submit issue");
-                        setTimeout(() => setErrorMessage(""), 3000);
-                      }
-                    })
-                    .catch((err) => {
-                      setErrorMessage("Error: " + err.message);
-                      setTimeout(() => setErrorMessage(""), 3000);
-                    });
-                }}
-                className="flex-1 py-3 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-lg font-bold hover:shadow-lg"
-              >
-                Submit Issue
-              </button>
-            </div>
-          </div>
-        </div>
+        <ReportIssueModal
+          user={user}
+          issueForm={issueForm}
+          setIssueForm={setIssueForm}
+          onClose={() => setShowReportIssueModal(false)}
+          fetchUserIssues={fetchUserIssues}
+          setSuccessMessage={setSuccessMessage}
+          setErrorMessage={setErrorMessage}
+        />
       )}
     </div>
   );
