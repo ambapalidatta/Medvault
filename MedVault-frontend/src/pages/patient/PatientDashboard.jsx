@@ -2,7 +2,6 @@ import React, { useEffect, useState } from "react";
 import Sidebar from "../../components/Sidebar.jsx";
 import PatientHeader from "../../components/patient/PatientHeader.jsx";
 import PatientDashboardOverview from "../../components/patient/PatientDashboardOverview.jsx";
-import SearchableDoctorDropdown from "../../components/SearchableDoctorDropdown.jsx";
 import FeedbackModal from "../../components/modals/FeedbackModal.jsx";
 import AddConditionModal from "../../components/modals/AddConditionModal.jsx";
 import AddRecordModal from "../../components/modals/AddRecordModal.jsx";
@@ -10,13 +9,15 @@ import ViewRecordModal from "../../components/modals/ViewRecordModal.jsx";
 import DummyPaymentModal from "../../components/modals/DummyPaymentModal.jsx";
 import ReportIssueModal from "../../components/modals/ReportIssueModal.jsx";
 import authFetch from "../../services/authFetch.js";
-import { getISTGreeting } from "../../utils/date.js";
-import LoadingSpinner from "../../components/common/LoadingSpinner.jsx";
 import EmptyState from "../../components/common/EmptyState.jsx";
-import ErrorState from "../../components/common/ErrorState.jsx";
 import PatientProfileSection from "../../components/patient/PatientProfileSection.jsx";
-
-
+import PatientWelcomeBanner from "../../components/patient/common/PatientWelcomeBanner.jsx";
+import BookAppointmentSection from "../../components/patient/appointments/BookAppointmentSection.jsx";
+import PatientRecordsSection from "../../components/patient/records/PatientRecordsSection.jsx";
+import PatientPrescriptionsSection from "../../components/patient/medications/PatientPrescriptionsSection.jsx";
+import EmergencyRequestSection from "../../components/patient/emergency/EmergencyRequestSection.jsx";
+import MedicalConditionsSection from "../../components/patient/conditions/MedicalConditionsSection.jsx";
+import PatientIssuesSection from "../../components/patient/issues/PatientIssuesSection.jsx";
 
 const PatientDashboard = ({ user, onLogout }) => {
   // --- STATE ---
@@ -718,24 +719,7 @@ const PatientDashboard = ({ user, onLogout }) => {
 
         <main className="p-8 pb-20 max-w-7xl w-full mx-auto">
           {/* BANNER */}
-          <div className="flex items-center gap-6 bg-gradient-to-r from-purple-600 to-brand-purple rounded-3xl shadow-lg p-8 mb-10 text-white animate-fade-in">
-            <img
-              src={
-                user.profilePictureUrl ||
-                `https://placehold.co/128x128/B8BDFF/7209B7?text=${user.name?.charAt(0)}`
-              }
-              alt="Profile"
-              className="w-24 h-24 rounded-full border-4 border-white shadow-lg object-cover"
-            />
-            <div>
-              <h2 className="text-4xl font-bold mb-2">
-                {getISTGreeting()}, {profileData.firstName || user.name}!
-              </h2>
-              <p className="text-purple-100 text-lg opacity-90 italic">
-                Let's take care of your health today.
-              </p>
-            </div>
-          </div>
+          <PatientWelcomeBanner user={user} profileData={profileData} />
 
           {/* DASHBOARD STATS */}
           {activeSection === "dashboard" && (
@@ -761,113 +745,29 @@ const PatientDashboard = ({ user, onLogout }) => {
             />
           )}
 
-          {/* BOOK APPOINTMENT (Fee logic fixed) */}
+          {/* BOOK APPOINTMENT */}
           {activeSection === "book-appointment" && (
-            <section className="bg-white rounded-2xl shadow-lg p-8 mb-32 animate-fade-in">
-              <h3 className="text-2xl font-bold text-slate-800 mb-6">
-                Book an Appointment
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <SearchableDoctorDropdown
-                  doctors={doctors}
-                  selectedDoctorId={selectedDoctorId}
-                  onSelectDoctor={handleDoctorSelect}
-                  loading={doctorsLoading}
-                  error={errorMessage}
-                />
-                <input
-                  type="date"
-                  value={selectedDate}
-                  onChange={(e) => handleDateChange(e.target.value)}
-                  min={new Date().toISOString().split("T")[0]}
-                  className="p-3 border rounded-lg focus:ring-2 focus:ring-brand-purple"
-                />
-                <select
-                  value={selectedTime}
-                  onChange={(e) => setSelectedTime(e.target.value)}
-                  disabled={
-                    loadingSlots ||
-                    !selectedDate ||
-                    (availableSlots.length === 0 && allSlotsBookedForDate)
-                  }
-                  className="p-3 border rounded-lg focus:ring-2 focus:ring-brand-purple"
-                >
-                  <option value="">
-                    {loadingSlots
-                      ? "Loading..."
-                      : !selectedDoctorId || !selectedDate
-                        ? "Select Date First"
-                        : allSlotsBookedForDate
-                          ? "No slots available"
-                          : availableSlots.length > 0
-                            ? "Select Doctor Slot"
-                            : "Select Time"}
-                  </option>
-                  {(allSlotsBookedForDate
-                    ? []
-                    : availableSlots.length > 0
-                      ? availableSlots
-                      : doctorHasNoSlots
-                        ? allTimeSlots
-                        : []
-                  ).map((s, i) => (
-                    <option key={i} value={s.value || s.slotTime}>
-                      {s.label || s.slotTime}
-                    </option>
-                  ))}
-                </select>
-                <input
-                  type="text"
-                  placeholder="Reason for visit"
-                  value={reason}
-                  onChange={(e) => setReason(e.target.value)}
-                  className="p-3 border rounded-lg focus:ring-2 focus:ring-brand-purple"
-                />
-              </div>
-
-              {/* --- Slot availability messages --- */}
-              {allSlotsBookedForDate && selectedDoctorId && selectedDate && (
-                <div className="mt-4 p-4 bg-red-50 text-red-700 font-semibold text-center rounded-lg border border-red-200">
-                  <i className="fas fa-calendar-times mr-2"></i>
-                  All slots are booked for this date. Please select a different
-                  date.
-                </div>
-              )}
-              {doctorHasNoSlots &&
-                selectedDoctorId &&
-                selectedDate &&
-                !loadingSlots && (
-                  <div className="mt-4 p-4 bg-amber-50 text-amber-700 font-semibold text-center rounded-lg border border-amber-200">
-                    <i className="fas fa-info-circle mr-2"></i>
-                    No pre-defined slots for this date. You can select any
-                    available time.
-                  </div>
-                )}
-
-              {/* --- FIX: Fee only shows when selected --- */}
-              {selectedDoctorFee !== null && selectedDoctorFee > 0 && (
-                <div className="mt-6 p-4 bg-purple-50 text-brand-purple font-bold text-center rounded-lg border border-purple-200">
-                  Consultation Fee: ₹{selectedDoctorFee}
-                </div>
-              )}
-
-              <button
-                onClick={initiatePayment}
-                disabled={!selectedDoctorId || !selectedDate || !selectedTime}
-                className={`mt-6 w-full bg-gradient-to-r from-purple-600 to-brand-purple text-white py-4 rounded-xl font-bold hover:shadow-lg transition-all ${
-                  !selectedDoctorId || !selectedDate || !selectedTime
-                    ? "opacity-50 cursor-not-allowed"
-                    : "hover:shadow-2xl"
-                }`}
-              >
-                Pay & Book Appointment
-              </button>
-              {successMessage && (
-                <p className="mt-4 text-center text-green-600 font-bold bg-green-50 p-2 rounded">
-                  {successMessage}
-                </p>
-              )}
-            </section>
+            <BookAppointmentSection
+              doctors={doctors}
+              doctorsLoading={doctorsLoading}
+              errorMessage={errorMessage}
+              selectedDoctorId={selectedDoctorId}
+              selectedDate={selectedDate}
+              selectedTime={selectedTime}
+              availableSlots={availableSlots}
+              allSlotsBookedForDate={allSlotsBookedForDate}
+              doctorHasNoSlots={doctorHasNoSlots}
+              allTimeSlots={allTimeSlots}
+              loadingSlots={loadingSlots}
+              reason={reason}
+              selectedDoctorFee={selectedDoctorFee}
+              successMessage={successMessage}
+              onDoctorSelect={handleDoctorSelect}
+              onDateChange={handleDateChange}
+              onTimeChange={setSelectedTime}
+              onReasonChange={setReason}
+              onSubmit={initiatePayment}
+            />
           )}
 
           {/* APPOINTMENTS LIST */}
@@ -1284,502 +1184,49 @@ const PatientDashboard = ({ user, onLogout }) => {
 
           {/* RECORDS + ACCESS REQUESTS */}
           {activeSection === "records" && (
-            <section className="bg-white rounded-2xl shadow-lg p-8 animate-fade-in">
-              <div className="flex justify-between mb-6">
-                <h3 className="text-2xl font-bold text-slate-800">
-                  Health Records
-                </h3>
-                <button
-                  onClick={() => setShowAddRecordModal(true)}
-                  className="bg-brand-purple text-white px-4 py-2 rounded-lg font-bold"
-                >
-                  + Upload
-                </button>
-              </div>
-
-              {/* ACCESS REQUESTS */}
-              {accessRequests.filter((r) => r.status === "PENDING").length >
-                0 && (
-                <div className="mb-8 bg-yellow-50 border-l-4 border-yellow-400 p-6 rounded-r-xl shadow-sm">
-                  <h4 className="text-lg font-bold text-yellow-800 mb-4 flex items-center">
-                    <i className="fas fa-key mr-2"></i> Pending Access Requests
-                  </h4>
-                  <div className="space-y-3">
-                    {accessRequests
-                      .filter((r) => r.status === "PENDING")
-                      .map((req) => (
-                        <div
-                          key={req.requestId}
-                          className="bg-white p-4 rounded-lg shadow flex justify-between items-center"
-                        >
-                          <div>
-                            <p className="font-bold text-slate-800">
-                              Dr. {req.doctorName}
-                            </p>
-                            <p className="text-sm text-slate-600">
-                              Requests access for appointment on:{" "}
-                              {new Date(
-                                req.appointmentDate,
-                              ).toLocaleDateString()}
-                            </p>
-                          </div>
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() =>
-                                handleConsentResponse(
-                                  req.requestId,
-                                  "APPROVED",
-                                  req.doctorName,
-                                )
-                              }
-                              className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 text-sm font-bold"
-                            >
-                              Approve
-                            </button>
-                            <button
-                              onClick={() =>
-                                handleConsentResponse(
-                                  req.requestId,
-                                  "REJECTED",
-                                  req.doctorName,
-                                )
-                              }
-                              className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 text-sm font-bold"
-                            >
-                              Reject
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                  </div>
-                </div>
-              )}
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {medicalRecords.map((r) => (
-                  <div
-                    key={r.recordId}
-                    className="p-6 border border-blue-200 rounded-xl hover:shadow-lg transition-all bg-blue-50 flex flex-col"
-                  >
-                    <div className="mb-2">
-                      <p className="font-bold text-xl text-slate-800 break-words">
-                        Patient Information for '{r.title}'
-                      </p>
-                      <p className="text-xs text-slate-500 font-bold uppercase mt-1 tracking-wider">
-                        {r.recordType || "General Record"}
-                      </p>
-                    </div>
-                    <p className="text-sm text-slate-500 mb-4 border-b border-blue-200 pb-2">
-                      {new Date(r.recordDate).toLocaleDateString()}
-                    </p>
-                    <button
-                      onClick={() => setSelectedRecordForView(r)}
-                      className="mt-auto w-full py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2 shadow-md transition-colors"
-                    >
-                      <i className="fas fa-eye"></i> View
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </section>
+            <PatientRecordsSection
+              medicalRecords={medicalRecords}
+              accessRequests={accessRequests}
+              onUploadClick={() => setShowAddRecordModal(true)}
+              onViewRecord={setSelectedRecordForView}
+              onConsentResponse={handleConsentResponse}
+            />
           )}
 
           {/* PRESCRIPTIONS */}
           {activeSection === "prescriptions" && (
-            <section className="animate-fade-in space-y-8">
-              {/* --- ACTIVE PRESCRIPTIONS --- */}
-              <div className="bg-white rounded-2xl shadow-lg p-8">
-                <h3 className="text-2xl font-bold text-slate-800 mb-6 flex items-center gap-2">
-                  <i className="fas fa-prescription-bottle-alt text-green-600"></i>{" "}
-                  Active Prescriptions ({activePrescriptions.length})
-                </h3>
-                {activePrescriptions.length === 0 ? (
-                  <EmptyState
-                    icon="fas fa-prescription-bottle-alt"
-                    title="No active prescriptions found"
-                    description="Active prescriptions from your doctors will appear here."
-                  />
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {activePrescriptions.map((p) => {
-                      // --- THIS LINE IS FIXED ---
-                      const dateStr =
-                        p.startDate || p.start_date
-                          ? new Date(
-                              p.startDate || p.start_date,
-                            ).toLocaleDateString()
-                          : "N/A";
-                      return (
-                        <div
-                          key={p.medication_id}
-                          className="bg-green-50 rounded-xl p-6 shadow-sm border border-green-200 hover:shadow-md transition-all"
-                        >
-                          <h4 className="text-xl font-bold text-green-700 mb-3 capitalize">
-                            {p.medication_name ||
-                              p.medicationName ||
-                              "Medicine"}
-                          </h4>
-                          <div className="space-y-2 text-sm text-slate-700 mb-4">
-                            <p>
-                              <span className="font-bold text-slate-500">
-                                Dosage:
-                              </span>{" "}
-                              {p.dosage}
-                            </p>
-                            <p>
-                              <span className="font-bold text-slate-500">
-                                Frequency:
-                              </span>{" "}
-                              {p.frequency}
-                            </p>
-                            <p>
-                              <span className="font-bold text-slate-500">
-                                Ends On:
-                              </span>{" "}
-                              {new Date(
-                                p.endDate || p.end_date,
-                              ).toLocaleDateString()}
-                            </p>
-                            {/* --- THIS LINE USES THE FIX --- */}
-                            <p className="text-slate-400 text-xs mt-2 pt-2 border-t border-green-200">
-                              Started: {dateStr}
-                            </p>
-                          </div>
-                          <div className="flex gap-3">
-                            <button
-                              onClick={() =>
-                                setSelectedRecordForView({
-                                  ...p,
-                                  title: p.medication_name,
-                                })
-                              }
-                              className="flex items-center gap-1 text-blue-600 font-bold text-sm hover:text-blue-800"
-                            >
-                              <i className="fas fa-eye"></i> View
-                            </button>
-                            <button
-                              onClick={() => alert("Downloading...")}
-                              className="flex items-center gap-1 text-green-600 font-bold text-sm hover:text-green-800"
-                            >
-                              <i className="fas fa-download"></i> Download
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-
-              {/* --- PAST PRESCRIPTIONS --- */}
-              <div className="bg-white rounded-2xl shadow-lg p-8">
-                <h3 className="text-2xl font-bold text-slate-500 mb-6 flex items-center gap-2">
-                  <i className="fas fa-history text-slate-500"></i> Past
-                  Prescriptions ({pastPrescriptions.length})
-                </h3>
-                {pastPrescriptions.length === 0 ? (
-                  <p className="text-slate-500 text-center py-4">
-                    No past prescriptions found.
-                  </p>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {pastPrescriptions.map((p) => {
-                      // --- THIS LINE IS ALSO FIXED ---
-                      const dateStr =
-                        p.startDate || p.start_date
-                          ? new Date(
-                              p.startDate || p.start_date,
-                            ).toLocaleDateString()
-                          : "N/A";
-                      return (
-                        <div
-                          key={p.medication_id}
-                          className="bg-slate-50 rounded-xl p-6 shadow-sm border border-slate-200 opacity-80 hover:opacity-100 transition-all"
-                        >
-                          <h4 className="text-xl font-bold text-slate-600 mb-3 capitalize">
-                            {p.medication_name ||
-                              p.medicationName ||
-                              "Medicine"}
-                          </h4>
-                          <div className="space-y-2 text-sm text-slate-600 mb-4">
-                            <p>
-                              <span className="font-bold text-slate-500">
-                                Dosage:
-                              </span>{" "}
-                              {p.dosage}
-                            </p>
-                            <p>
-                              <span className="font-bold text-slate-500">
-                                Frequency:
-                              </span>{" "}
-                              {p.frequency}
-                            </p>
-                            <p>
-                              <span className="font-bold text-slate-500">
-                                Ended On:
-                              </span>{" "}
-                              {new Date(
-                                p.endDate || p.end_date,
-                              ).toLocaleDateString()}
-                            </p>
-                            {/* --- THIS LINE USES THE FIX --- */}
-                            <p className="text-slate-400 text-xs mt-2 pt-2 border-t border-slate-200">
-                              Started: {dateStr}
-                            </p>
-                          </div>
-                          <div className="flex gap-3">
-                            <button
-                              onClick={() =>
-                                setSelectedRecordForView({
-                                  ...p,
-                                  title: p.medication_name,
-                                })
-                              }
-                              className="flex items-center gap-1 text-blue-600 font-bold text-sm hover:text-blue-800"
-                            >
-                              <i className="fas fa-eye"></i> View
-                            </button>
-                            <button
-                              onClick={() => alert("Downloading...")}
-                              className="flex items-center gap-1 text-green-600 font-bold text-sm hover:text-green-800"
-                            >
-                              <i className="fas fa-download"></i> Download
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </section>
+            <PatientPrescriptionsSection
+              activePrescriptions={activePrescriptions}
+              pastPrescriptions={pastPrescriptions}
+              onViewPrescription={setSelectedRecordForView}
+            />
           )}
 
-          {/* EMERGENCY REQUEST FORM (Fee logic fixed) */}
+          {/* EMERGENCY REQUEST FORM */}
           {activeSection === "emergency" && (
-            <section className="bg-red-50 rounded-2xl shadow-lg p-8 border-2 border-red-100 animate-fade-in">
-              <h3 className="text-2xl font-bold text-red-700 mb-6 flex items-center">
-                <i className="fas fa-ambulance mr-2"></i> Emergency Request
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <SearchableDoctorDropdown
-                  doctors={doctors}
-                  selectedDoctorId={emergencyData.doctorId}
-                  onSelectDoctor={handleEmergencyDoctorSelect}
-                />
-                <select
-                  value={emergencyData.urgencyLevel}
-                  onChange={(e) =>
-                    setEmergencyData({
-                      ...emergencyData,
-                      urgencyLevel: e.target.value,
-                    })
-                  }
-                  className="p-3 border border-red-200 rounded-lg font-medium text-slate-700"
-                >
-                  <option value="">Select Urgency Level</option>
-                  <option value="HIGH">
-                    ⚡ HIGH - Immediate attention needed
-                  </option>
-                  <option value="MEDIUM">
-                    ⚠️ MEDIUM - Urgent but not critical
-                  </option>
-                  <option value="LOW">🟢 LOW - Can wait for a few hours</option>
-                </select>
-                <input
-                  type="date"
-                  value={emergencyData.preferredDate}
-                  onChange={(e) =>
-                    setEmergencyData({
-                      ...emergencyData,
-                      preferredDate: e.target.value,
-                    })
-                  }
-                  className="p-3 border border-red-200 rounded-lg"
-                />
-                <input
-                  type="time"
-                  value={emergencyData.preferredTime}
-                  onChange={(e) =>
-                    setEmergencyData({
-                      ...emergencyData,
-                      preferredTime: e.target.value,
-                    })
-                  }
-                  className="p-3 border border-red-200 rounded-lg"
-                />
-                <input
-                  type="text"
-                  placeholder="Location"
-                  value={emergencyData.currentLocation}
-                  onChange={(e) =>
-                    setEmergencyData({
-                      ...emergencyData,
-                      currentLocation: e.target.value,
-                    })
-                  }
-                  className="p-3 border border-red-200 rounded-lg"
-                />
-                <textarea
-                  placeholder="Describe Condition..."
-                  value={emergencyData.conditionDescription}
-                  className="md:col-span-2 p-3 border border-red-200 rounded-lg h-32"
-                  onChange={(e) =>
-                    setEmergencyData({
-                      ...emergencyData,
-                      conditionDescription: e.target.value,
-                    })
-                  }
-                ></textarea>
-              </div>
-
-              {/* --- FIX: Fee only shows when selected --- */}
-              {selectedDoctorFee !== null && selectedDoctorFee > 0 && (
-                <div className="mt-4 p-3 bg-red-100 text-red-800 font-bold text-center rounded-lg border border-red-200">
-                  Emergency Fee: ₹{selectedDoctorFee}
-                </div>
-              )}
-              <button
-                onClick={initiatePayment}
-                className="mt-6 w-full bg-red-600 text-white py-4 rounded-xl font-bold hover:bg-red-700 shadow-lg"
-              >
-                Pay & Send Emergency Request
-              </button>
-              {successMessage && (
-                <p className="mt-4 text-center text-green-600 font-bold bg-green-50 p-3 rounded-lg border border-green-200">
-                  {successMessage}
-                </p>
-              )}
-              {errorMessage && (
-                <p className="mt-4 text-center text-red-600 font-bold bg-red-50 p-3 rounded-lg border border-red-200">
-                  {errorMessage}
-                </p>
-              )}
-            </section>
+            <EmergencyRequestSection
+              doctors={doctors}
+              emergencyData={emergencyData}
+              setEmergencyData={setEmergencyData}
+              selectedDoctorFee={selectedDoctorFee}
+              successMessage={successMessage}
+              errorMessage={errorMessage}
+              onDoctorSelect={handleEmergencyDoctorSelect}
+              onSubmit={initiatePayment}
+            />
           )}
 
           {/* CONDITIONS */}
           {activeSection === "conditions" && (
-            <section className="bg-white rounded-2xl shadow-lg p-8 animate-fade-in">
-              <div className="flex justify-between mb-6">
-                <h3 className="text-2xl font-bold text-slate-800">
-                  Medical Conditions
-                </h3>
-                <button
-                  onClick={() => setShowAddConditionModal(true)}
-                  className="text-brand-purple font-bold bg-purple-50 px-4 py-2 rounded-lg"
-                >
-                  + Add
-                </button>
-              </div>
-              {medicalConditions.map((c) => (
-                <div
-                  key={c.conditionId}
-                  className="p-4 border border-yellow-200 rounded-lg mb-3 bg-yellow-50"
-                >
-                  <div className="flex justify-between items-start mb-2">
-                    <div>
-                      <p className="font-bold text-lg text-slate-800">
-                        {c.conditionName}
-                      </p>
-                      <p className="text-sm text-slate-500">
-                        Diagnosed:{" "}
-                        {new Date(c.diagnosedDate).toLocaleDateString()}
-                      </p>
-                    </div>
-                    <span className="bg-teal-100 text-teal-800 px-3 py-1 rounded-full text-xs font-bold">
-                      {c.status}
-                    </span>
-                  </div>
-                  {c.notes && (
-                    <div className="text-base text-slate-700 mt-2 p-3 bg-white border border-yellow-100 rounded-lg italic">
-                      Note: {c.notes}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </section>
+            <MedicalConditionsSection
+              medicalConditions={medicalConditions}
+              onAddCondition={() => setShowAddConditionModal(true)}
+            />
           )}
 
           {/* REPORTS & ISSUES - PATIENT */}
           {activeSection === "reports" && (
-            <section className="animate-fade-in space-y-6">
-              <div className="bg-white rounded-2xl shadow-lg p-8">
-                <div className="flex justify-between items-center mb-6">
-                  <h3 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
-                    <i className="fas fa-flag text-orange-500"></i> My Reports &
-                    Issues
-                  </h3>
-                  <button
-                    onClick={() => {
-                      window.location.hash = "#support";
-                    }}
-                    className="bg-gradient-to-r from-orange-500 to-red-500 text-white px-4 py-2 rounded-lg font-bold hover:shadow-lg transition-all"
-                  >
-                    <i className="fas fa-plus mr-2"></i> Report New Issue
-                  </button>
-                </div>
-
-                {userIssues.length === 0 ? (
-                  <div className="text-center py-12">
-                    <i className="fas fa-check-circle text-6xl text-green-300 mb-4"></i>
-                    <p className="text-slate-500 text-lg">
-                      No issues reported yet.
-                    </p>
-                    <p className="text-slate-400 text-sm mt-2">
-                      If you face any problems, click "Report New Issue" above.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {userIssues.map((issue) => {
-                      const statusLower = (
-                        issue.status || "pending"
-                      ).toLowerCase();
-                      const isResolved = statusLower === "resolved";
-                      const isInProgress =
-                        statusLower === "in-progress" ||
-                        statusLower === "in_progress";
-                      return (
-                        <div
-                          key={issue.id}
-                          className={`p-5 rounded-xl border-2 ${isResolved ? "bg-green-50 border-green-200" : isInProgress ? "bg-blue-50 border-blue-200" : "bg-orange-50 border-orange-200"}`}
-                        >
-                          <div className="flex justify-between items-start mb-3">
-                            <div>
-                              <h4 className="font-bold text-lg text-slate-800">
-                                {issue.subject || "Issue Report"}
-                              </h4>
-                              <p className="text-sm text-slate-500">
-                                Submitted:{" "}
-                                {new Date(issue.createdAt).toLocaleDateString()}
-                              </p>
-                            </div>
-                            <span
-                              className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${isResolved ? "bg-green-500 text-white" : isInProgress ? "bg-blue-500 text-white" : "bg-orange-500 text-white"}`}
-                            >
-                              {issue.status || "PENDING"}
-                            </span>
-                          </div>
-                          <p className="text-slate-700 mb-3">{issue.message}</p>
-                          {issue.adminMessage && (
-                            <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                              <p className="text-sm font-bold text-blue-700 mb-1">
-                                <i className="fas fa-reply mr-1"></i> Admin
-                                Response:
-                              </p>
-                              <p className="text-slate-700">
-                                {issue.adminMessage}
-                              </p>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </section>
+            <PatientIssuesSection userIssues={userIssues} />
           )}
         </main>
       </div>
@@ -2172,6 +1619,5 @@ const PatientDashboard = ({ user, onLogout }) => {
   );
 };
 // --- DOCTOR DASHBOARD ---
-
 
 export default PatientDashboard;
