@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080/api";
+import { API_BASE_URL } from "../services/apiClient.js";
 
 const getAuthToken = () => sessionStorage.getItem("authToken");
 
@@ -61,14 +61,11 @@ const AuthPage = ({ role, onBack, onLoginSuccess }) => {
     e.preventDefault();
     setMessage({ text: "Signing in...", type: "info" });
     try {
-      const response = await authFetch(
-        `${API_BASE_URL}/auth/login`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(formData),
-        },
-      );
+      const response = await authFetch(`${API_BASE_URL}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      });
 
       if (response.ok) {
         const userData = await response.json();
@@ -500,6 +497,5 @@ const LoginForm = ({ onSubmit, role }) => {
     </form>
   );
 };
-
 
 export default AuthPage;

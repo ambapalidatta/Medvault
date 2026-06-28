@@ -7,43 +7,34 @@ import DoctorsPage from "../pages/DoctorsPage.jsx";
 import SupportPage from "../pages/SupportPage.jsx";
 import PatientDashboard from "../pages/patient/PatientDashboard.jsx";
 import DoctorDashboard from "../pages/doctor/DoctorDashboard.jsx";
+import { useAuth } from "../context/AuthContext.jsx";
 
 export default function AppRoutes() {
+  const { user, isAuthenticated, role, login, logout } = useAuth();
+
   const [page, setPage] = useState("home");
   const [selectedRole, setSelectedRole] = useState(null);
   const [authBackPage, setAuthBackPage] = useState("role_select");
-  const [loggedInUser, setLoggedInUser] = useState(null);
 
-  useEffect(() => {
-    const storedUser = sessionStorage.getItem("loggedInUser");
-
-    if (!storedUser) return;
-
-    try {
-      const userData = JSON.parse(storedUser);
-      setLoggedInUser(userData);
-    } catch (error) {
-      console.error("Failed to parse stored user data", error);
-      sessionStorage.removeItem("loggedInUser");
-      sessionStorage.removeItem("authToken");
-    }
-  }, []);
-
-  const navigateTo = (targetPage, role = null, backTarget = null) => {
+  const navigateTo = (
+    targetPage,
+    selectedUserRole = null,
+    backTarget = null,
+  ) => {
     window.scrollTo(0, 0);
     setPage(targetPage);
 
-    if (role) setSelectedRole(role);
+    if (selectedUserRole) setSelectedRole(selectedUserRole);
     if (backTarget) setAuthBackPage(backTarget);
 
     if (targetPage === "home") {
       window.location.hash = "";
     } else if (targetPage === "role_select") {
       window.location.hash = "role-selection";
-    } else if (targetPage === "auth" && role) {
-      window.location.hash = `${role}`;
-    } else if (targetPage === "dashboard" && role) {
-      window.location.hash = `${role}-dashboard`;
+    } else if (targetPage === "auth" && selectedUserRole) {
+      window.location.hash = selectedUserRole;
+    } else if (targetPage === "dashboard" && selectedUserRole) {
+      window.location.hash = `${selectedUserRole}-dashboard`;
     } else if (targetPage === "support") {
       window.location.hash = "support";
     } else if (targetPage === "doctors") {
@@ -55,24 +46,20 @@ export default function AppRoutes() {
     const checkHash = () => {
       const hash = window.location.hash.replace("#", "");
 
-      if (!hash || hash === "") {
-        if (page !== "home" && !loggedInUser) {
-          setPage("home");
-        }
+      if (!hash) {
+        if (!isAuthenticated) setPage("home");
         return;
       }
 
       if (hash === "role-selection") {
-        if (!loggedInUser) {
-          setPage("role_select");
-        }
+        if (!isAuthenticated) setPage("role_select");
         return;
       }
 
       if (hash === "patient") {
-        if (loggedInUser && loggedInUser.role === "patient") {
+        if (isAuthenticated && role === "patient") {
           window.location.hash = "patient-dashboard";
-        } else if (!loggedInUser) {
+        } else {
           setPage("auth");
           setSelectedRole("patient");
           setAuthBackPage("role_select");
@@ -80,10 +67,21 @@ export default function AppRoutes() {
         return;
       }
 
+      if (hash === "doctor") {
+        if (isAuthenticated && role === "doctor") {
+          window.location.hash = "doctor-dashboard";
+        } else {
+          setPage("auth");
+          setSelectedRole("doctor");
+          setAuthBackPage("role_select");
+        }
+        return;
+      }
+
       if (hash === "patient-dashboard") {
-        if (loggedInUser && loggedInUser.role === "patient") {
+        if (isAuthenticated && role === "patient") {
           setPage("dashboard");
-        } else if (!loggedInUser) {
+        } else {
           setPage("auth");
           setSelectedRole("patient");
           setAuthBackPage("home");
@@ -91,21 +89,10 @@ export default function AppRoutes() {
         return;
       }
 
-      if (hash === "doctor") {
-        if (loggedInUser && loggedInUser.role === "doctor") {
-          window.location.hash = "doctor-dashboard";
-        } else if (!loggedInUser) {
-          setPage("auth");
-          setSelectedRole("doctor");
-          setAuthBackPage("home");
-        }
-        return;
-      }
-
       if (hash === "doctor-dashboard") {
-        if (loggedInUser && loggedInUser.role === "doctor") {
+        if (isAuthenticated && role === "doctor") {
           setPage("dashboard");
-        } else if (!loggedInUser) {
+        } else {
           setPage("auth");
           setSelectedRole("doctor");
           setAuthBackPage("home");
@@ -124,156 +111,152 @@ export default function AppRoutes() {
       }
 
       if (hash === "register" || hash.startsWith("register?")) {
-        const hashParams = new URLSearchParams(
+        const params = new URLSearchParams(
           hash.replace("register?", "").replace("register", ""),
         );
-        const role = hashParams.get("role");
-        const email = hashParams.get("email");
 
-        if (!loggedInUser) {
-          if (role === "doctor") {
-            setPage("auth");
-            setSelectedRole("doctor");
-            setAuthBackPage("home");
-            if (email) {
-              sessionStorage.setItem("invitedDoctorEmail", email);
-            }
-          } else if (role === "patient") {
-            setPage("auth");
-            setSelectedRole("patient");
-            setAuthBackPage("home");
-          } else {
-            setPage("auth");
-            setSelectedRole("patient");
-            setAuthBackPage("home");
-          }
+        const requestedRole = params.get("role") || "patient";
+        const email = params.get("email");
+
+        if (email) {
+          sessionStorage.setItem("invitedDoctorEmail", email);
         }
+
+        setPage("auth");
+        setSelectedRole(requestedRole);
+        setAuthBackPage("home");
         return;
       }
 
       if (hash === "login" || hash.startsWith("login?")) {
-        const hashParams = new URLSearchParams(
+        const params = new URLSearchParams(
           hash.replace("login?", "").replace("login", ""),
         );
-        const role = hashParams.get("role");
 
-        if (!loggedInUser) {
-          if (role === "doctor") {
-            setPage("auth");
-            setSelectedRole("doctor");
-            setAuthBackPage("home");
-          } else {
-            setPage("auth");
-            setSelectedRole("patient");
-            setAuthBackPage("home");
-          }
-        }
+        setPage("auth");
+        setSelectedRole(params.get("role") || "patient");
+        setAuthBackPage("home");
       }
     };
 
     checkHash();
     window.addEventListener("hashchange", checkHash);
 
-    return () => {
-      window.removeEventListener("hashchange", checkHash);
-    };
-  }, [loggedInUser, page]);
+    return () => window.removeEventListener("hashchange", checkHash);
+  }, [isAuthenticated, role]);
 
   const handleLoginSuccess = (userData) => {
-    setLoggedInUser(userData);
-    sessionStorage.setItem("loggedInUser", JSON.stringify(userData));
+    login(userData);
     navigateTo("dashboard", userData.role);
   };
 
   const handleLogout = () => {
-    const userRole = loggedInUser?.role;
+    const previousRole = role;
+    logout();
 
-    setLoggedInUser(null);
-    sessionStorage.removeItem("loggedInUser");
-    sessionStorage.removeItem("authToken");
-
-    if (userRole === "patient") {
-      setPage("patient-login");
-      window.location.hash = "#patient";
-    } else if (userRole === "doctor") {
-      setPage("doctor-login");
-      window.location.hash = "#doctor";
+    if (previousRole === "patient") {
+      setPage("auth");
+      setSelectedRole("patient");
+      window.location.hash = "patient";
+    } else if (previousRole === "doctor") {
+      setPage("auth");
+      setSelectedRole("doctor");
+      window.location.hash = "doctor";
     } else {
       setPage("home");
       window.location.hash = "";
     }
   };
 
+  const renderAuthenticatedDashboard = () => {
+    if (role === "patient") {
+      return <PatientDashboard user={user} onLogout={handleLogout} />;
+    }
+
+    if (role === "doctor") {
+      return <DoctorDashboard user={user} onLogout={handleLogout} />;
+    }
+
+    return (
+      <div className="min-h-screen bg-slate-50 p-8">
+        <div className="mx-auto max-w-xl rounded-2xl bg-white p-8 shadow">
+          <h1 className="text-2xl font-bold text-slate-900">
+            Unsupported role
+          </h1>
+          <p className="mt-2 text-slate-600">
+            Please log in through the correct portal.
+          </p>
+          <button
+            onClick={handleLogout}
+            className="mt-6 rounded-xl bg-slate-900 px-5 py-3 font-bold text-white"
+          >
+            Logout
+          </button>
+        </div>
+      </div>
+    );
+  };
+
   const renderPage = () => {
     if (page === "support") {
-      const onBackAction = loggedInUser
-        ? () => navigateTo("dashboard", loggedInUser.role)
-        : () => navigateTo("home");
-
-      return <SupportPage onBack={onBackAction} />;
+      return (
+        <SupportPage
+          onBack={
+            isAuthenticated
+              ? () => navigateTo("dashboard", role)
+              : () => navigateTo("home")
+          }
+        />
+      );
     }
 
     if (page === "doctors") {
-      const onBackAction = loggedInUser
-        ? () => navigateTo("dashboard", loggedInUser.role)
-        : () => navigateTo("home");
-
-      return <DoctorsPage onBack={onBackAction} />;
+      return (
+        <DoctorsPage
+          onBack={
+            isAuthenticated
+              ? () => navigateTo("dashboard", role)
+              : () => navigateTo("home")
+          }
+        />
+      );
     }
 
-    if (loggedInUser) {
-      switch (loggedInUser.role) {
-        case "patient":
-          return (
-            <PatientDashboard user={loggedInUser} onLogout={handleLogout} />
-          );
-        case "doctor":
-          return (
-            <DoctorDashboard user={loggedInUser} onLogout={handleLogout} />
-          );
-        default:
-          return (
-            <div className="p-8">
-              <h1>Dashboard for {loggedInUser.role}</h1>
-              <button onClick={handleLogout}>Logout</button>
-            </div>
-          );
-      }
+    if (isAuthenticated) {
+      return renderAuthenticatedDashboard();
     }
 
-    switch (page) {
-      case "role_select":
-        return (
-          <RoleSelectionPage
-            onBack={() => navigateTo("home")}
-            onSelectPatient={() => navigateTo("auth", "patient", "role_select")}
-            onSelectDoctor={() => navigateTo("auth", "doctor", "role_select")}
-            onSelectAdmin={() => {
-              window.location.href = "/admin.html";
-            }}
-          />
-        );
-      case "auth":
-        return (
-          <AuthPage
-            role={selectedRole}
-            onBack={() => navigateTo(authBackPage || "role_select")}
-            onLoginSuccess={handleLoginSuccess}
-          />
-        );
-      case "home":
-      default:
-        return (
-          <HomePage
-            onNavigateToRoleSelect={() => navigateTo("role_select")}
-            loggedIn={!!loggedInUser}
-            onLogout={handleLogout}
-            onNavigateToDashboard={() =>
-              navigateTo("dashboard", loggedInUser?.role)
-            }
-          />
-        );
+    if (page === "role_select") {
+      return (
+        <RoleSelectionPage
+          onBack={() => navigateTo("home")}
+          onSelectPatient={() => navigateTo("auth", "patient", "role_select")}
+          onSelectDoctor={() => navigateTo("auth", "doctor", "role_select")}
+          onSelectAdmin={() => {
+            window.location.href = "/admin.html";
+          }}
+        />
+      );
     }
+
+    if (page === "auth") {
+      return (
+        <AuthPage
+          role={selectedRole}
+          onBack={() => navigateTo(authBackPage || "role_select")}
+          onLoginSuccess={handleLoginSuccess}
+        />
+      );
+    }
+
+    return (
+      <HomePage
+        onNavigateToRoleSelect={() => navigateTo("role_select")}
+        loggedIn={isAuthenticated}
+        onLogout={handleLogout}
+        onNavigateToDashboard={() => navigateTo("dashboard", role)}
+      />
+    );
   };
 
   return (

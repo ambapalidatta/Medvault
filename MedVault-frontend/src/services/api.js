@@ -1,6 +1,11 @@
-import request, { API_BASE_URL, getAuthToken } from "./apiClient.js";
+import request, {
+  API_BASE_URL,
+  getAuthToken,
+  jsonRequest,
+  safeRequest,
+} from "./apiClient.js";
 
-export { API_BASE_URL, getAuthToken };
+export { API_BASE_URL, getAuthToken, jsonRequest, safeRequest };
 
 export async function apiFetch(endpoint, options = {}) {
   return request(endpoint, options);
